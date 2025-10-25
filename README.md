@@ -19,7 +19,7 @@ Verify:
 ```bash
 python3 --version
 
-B Install Git (optional)
+## B Install Git (optional)
 
 | Platform    | Command / Link                                         |
 | ----------- | ------------------------------------------------------ |
@@ -27,7 +27,7 @@ B Install Git (optional)
 | **Windows** | [git-scm.com/downloads](https://git-scm.com/downloads) |
 | **Linux**   | `sudo apt install git`                                 |
 
-C Install Ollama + Llama 3.1 (Local Model)
+## C Install Ollama + Llama 3.1 (Local Model)
 
 Ollama runs LLMs locally — no API keys or cloud costs.
 
@@ -47,4 +47,14 @@ ollama pull llama3.1
 Verify:
 ollama run llama3.1 "Hello"
 
+## 🗂 2 Project Setup
+A Get the project folder
+Clone or copy the wot-poc folder (for example ~/wot-poc):
 
+wot-poc/
+  data/
+    input.xlsx
+  src/
+  README.md
+  requirements.txt
+  .env
