@@ -1,4 +1,3 @@
-# src/searcher.py
 import os, json, time, unicodedata
 from pathlib import Path
 from typing import List, Dict
@@ -8,7 +7,7 @@ import requests
 from bs4 import BeautifulSoup
 
 # ---------- Env & defaults ----------
-REGION = os.getenv("SEARCH_REGION", "us-en")  # not used by HTML scrapers but kept for logs
+REGION = os.getenv("SEARCH_REGION", "us-en")   # for logs
 SAFESEARCH = os.getenv("SEARCH_SAFESEARCH", "moderate")
 BACKOFF = float(os.getenv("SEARCH_BACKOFF_SECONDS", "2"))
 MAX_URLS = int(os.getenv("MAX_URLS_PER_PROJECT", "6"))
@@ -18,7 +17,6 @@ UA = os.getenv(
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 13_6) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
 )
-
 HEADERS = {
     "User-Agent": UA,
     "Accept": "text/html,application/xhtml+xml,*/*",
@@ -26,7 +24,6 @@ HEADERS = {
     "Cache-Control": "no-cache",
 }
 
-# prefer these host patterns when filtering
 DISALLOW = ("facebook.com","instagram.com","tiktok.com","pinterest.com")
 # ------------------------------------
 
@@ -168,7 +165,6 @@ def search_project(name: str, out_dir: Path) -> List[Dict[str,str]]:
         hits = _ddg_html(q, want=need)
 
         if not hits:
-            # Bing fallback
             time.sleep(BACKOFF)
             hits = _bing_html(q, want=need)
 

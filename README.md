@@ -1,184 +1,103 @@
 # 🧠 Web of Trust POC  
-### AI-Assisted Data Collection using Local Llama 3.1 (via Ollama)
+### AI-Assisted Data Collection using Local Llama 3.1 (Ollama) or OpenAI (switchable at runtime)
 
-This Proof of Concept automatically collects and structures data for **Digital Identity (SSI/DI)** projects in the same Excel format used by the client.  
-It reads the existing `input.xlsx`, identifies rows with missing fields, scrapes public information, asks a **local AI model (Llama 3.1)** to fill the gaps, and writes results to `output.xlsx`.
+This POC reads `data/input.xlsx`, searches the web, scrapes public pages, asks an LLM to extract structured fields, and writes `data/output.xlsx` with **AI_Data**, **Comparison**, and **Review** sheets.
 
-## 🚀 1  Prerequisites — Install Once
+## ⚡ Quick Start (with FULL PATH commands)
 
-### A  Install Python 3.12 or newer
-| Platform | Command / Download |
-|-----------|--------------------|
-| **macOS** | `brew install python`  or  [python.org/downloads](https://www.python.org/downloads/) |
-| **Windows** | [Download Installer](https://www.python.org/downloads/windows/) → check ✅ *Add Python to PATH* |
-| **Linux** | `sudo apt install python3 python3-venv python3-pip` |
+> Replace `<ABS_PATH>` with your actual project path. Example:  
+> `/Users/you/Documents/workspace-py/wot-poc`
 
-Verify installation:
 ```bash
-python3 --version
-```
+# 1) Go to your project
+cd <ABS_PATH>/wot-poc
 
-### B  Install Git (optional)
-If you don’t have it installed:
-
-| Platform | Command / Link |
-|-----------|----------------|
-| **macOS** | `brew install git` |
-| **Windows** | [git-scm.com/downloads](https://git-scm.com/downloads) |
-| **Linux** | `sudo apt install git` |
-
-### C  Install Ollama + Llama 3.1 (local model)
-Ollama lets you run large language models locally — **no API key or internet dependency**.
-
-#### macOS
-```bash
-brew install ollama
-brew services start ollama        # run as background service
-ollama pull llama3.1              # downloads ~4 GB model
-```
-
-#### Windows
-1. Download & install → [ollama.com/download](https://ollama.com/download)  
-2. Start Ollama from the Start Menu (it runs as a service)  
-3. In PowerShell:
-```powershell
-ollama pull llama3.1
-```
-
-#### Linux
-```bash
-curl -fsSL https://ollama.com/install.sh | sh
-ollama pull llama3.1
-```
-
-Verify Ollama:
-```bash
-ollama run llama3.1 "Hello"
-```
-If it replies, you’re ready.
-
-## 🗂  2  Project Setup
-
-### A  Get the project folder
-Download or clone this folder (for example to `~/wot-poc`).
-
-```
-wot-poc/
-  data/
-    input.xlsx        # client-provided workbook
-  src/                # Python scripts
-  README.md
-  requirements.txt
-  .env
-```
-
-### B  Create and activate a Python environment
-```bash
-cd ~/wot-poc
+# 2) Create and activate a virtual environment
 python3 -m venv .venv
-source .venv/bin/activate          # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
+source .venv/bin/activate        # Windows: .venv\Scripts\activate
+
+# 3) Install dependencies
+/Users/<you>/Documents/workspace-py/wot-poc/.venv/bin/pip install -r requirements.txt
+
+# 4) Configure .env
+# Open .env and set:
+#   LLM_PROVIDER=ollama  (for local model)  OR  LLM_PROVIDER=openai (for cloud)
+#   OPENAI_API_KEY=sk-... (only if using OpenAI)
+
+# 5A) Run with local Llama (Ollama)
+# (macOS) Install/start Ollama once: brew install ollama && brew services start ollama
+ollama pull llama3.1
+python src/main.py --targets all --provider ollama --model llama3.1
+ollama --model llama3.1
+
+# 5B) Run with OpenAI (cloud)
+export OPENAI_API_KEY=sk-...  # or set in .env
+python src/main.py --targets all --provider openai --model gpt-4o-mini
+openai --model gpt-4o-mini --temperature 0 --max-output-tokens 1200
+
+# 6) Open results
+open wot-poc/data/output.xlsx   # Windows: start data\output.xlsx
 ```
 
-## ⚙️  3  Configure the environment
+### Targeting specific projects (full paths)
+```bash
+python src/main.py --targets "cheqd,Diwala" --provider openai --model gpt-4o-mini
 
-Your `.env` file (included) should look like:
+python src/main.py --targets all --provider ollama --model llama3.1
 ```
-USE_OLLAMA=true
+
+## 🔧 `.env` (create in project root)
+
+```dotenv
+USE_MANUAL_ONLY=false
+MAX_URLS_PER_PROJECT=6
+
+SEARCH_REGION=us-en
+SEARCH_SAFESEARCH=moderate
+SEARCH_BACKOFF_SECONDS=2
+SEARCH_UA=Mozilla/5.0 (Macintosh; Intel Mac OS X 13_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36
+
+SCRAPE_CONNECT_TIMEOUT=10
+SCRAPE_READ_TIMEOUT=25
+SCRAPE_MAX_RETRIES=3
+SCRAPE_BACKOFF=0.5
+SCRAPE_MAX_BYTES=2000000
+SCRAPE_SLEEP_BETWEEN=0.4
+SCRAPE_UA=Mozilla/5.0 (Macintosh; Intel Mac OS X 13_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36
+
+# LLM provider (CLI flags override these)
+LLM_PROVIDER=ollama                 # openai | ollama
+OPENAI_API_KEY=                     # put your key here if using OpenAI
+OPENAI_MODEL=gpt-4o-mini
+OPENAI_TEMPERATURE=0
+OPENAI_MAX_OUTPUT_TOKENS=1200
+
 OLLAMA_HOST=http://localhost:11434
 OLLAMA_MODEL=llama3.1
-MAX_URLS_PER_PROJECT=3
-USE_MANUAL_ONLY=true
 ```
 
-> **Tip:**  
-> To let the script find URLs automatically, set  
-> `USE_MANUAL_ONLY=false`.
+**Where to put the OpenAI key?**  
+Put `OPENAI_API_KEY=sk-...` in `.env` (recommended). You may also `export OPENAI_API_KEY=sk-...` in your terminal.
 
-## 🧩  4  Running the POC
+---
 
-### Step 1  Start Ollama
-```bash
-ollama serve
-```
-*(or `brew services start ollama` on macOS)*
+## 🧩 What you get
 
-### Step 2  Activate the virtual environment
-```bash
-cd ~/wot-poc
-source .venv/bin/activate
-```
+- **AI_Data** — fresh AI-extracted fields for every Product Name in `input.xlsx`
+- **Comparison** — side-by-side Client vs AI with ✅/❌
+- **Review** — values, source URLs, and validation notes
 
-### Step 3  Ensure `data/input.xlsx` is the client file  
-It should contain four filled sample rows and several blank rows for projects to be auto-filled.
+---
 
-### Step 4  Run the POC
-```bash
-python src/main.py --targets auto
-```
+## 🧰 Troubleshooting
 
-What happens:
-1. The script reads `input.xlsx` and detects rows that have names but mostly empty fields.  
-2. For each project name, it scrapes or loads URLs (or reads `manual_urls.txt` if provided).  
-3. It asks Llama 3.1 to extract structured data.  
-4. It merges results into `data/output.xlsx`, keeping existing data intact.  
-5. It adds a **Review** sheet listing evidence URLs and validation notes.
+- **0 URLs found in search** → raise `SEARCH_BACKOFF_SECONDS` to 3–4; try a different network/VPN.
+- **Scraper shows 0 chars** → pages are PDFs/JS-heavy; scraper logs `content-type` and char counts.
+- **Provider switch** → use CLI overrides: `--provider openai|ollama`, `--model <name>`.
 
-## 🌐  5  (Recommended) Add Manual URLs
-You can guide the model by supplying 2-4 official sources per project:
+---
 
-```bash
-mkdir -p data/cache/Your_Project_Name
-nano data/cache/Your_Project_Name/manual_urls.txt
-```
-
-Each line = one URL (e.g., official site, press release, GitHub repo).
-
-When `USE_MANUAL_ONLY=true`, the script uses only these URLs — no online search.
-
-## 📄  6  Outputs
-
-| File | Description |
-|------|--------------|
-| **data/output.xlsx** | Final results merged into the original structure |
-| **Review sheet** | Field values, source URLs, and validation issues |
-| **data/cache/<Project>/record_debug.json** | Full AI JSON response |
-| **data/cache/<Project>/texts/*.json** | Scraped text from each page |
-
-## 🧰  7  Troubleshooting
-
-| Issue | Solution |
-|-------|-----------|
-| `ModuleNotFoundError` | Activate the venv → `pip install -r requirements.txt` |
-| `could not connect to localhost:11434` | Start Ollama: `ollama serve` |
-| First run very slow | Normal — model loads into memory (1-2 min) |
-| Output blank | Add manual URLs or set `USE_MANUAL_ONLY=true` |
-| Wrong Python path (macOS/Xcode) | Use `python3` explicitly (from Homebrew) |
-
-## 🧾  8  Example Run Log
-
-```
-$ ollama serve
-$ source .venv/bin/activate
-$ python src/main.py --targets auto
-
-[auto] detected targets: ['Mina', 'eIDAS Bridge', 'Verida', 'ID2020']
-Processing Mina
-Processing eIDAS Bridge
-Processing Verida
-Processing ID2020
-Done → /Users/<user>/wot-poc/data/output.xlsx
-```
-
-Open `data/output.xlsx` → check both the **main sheet** and **Review** sheet.
-
-## 💡  9  Tips for Better Results
-- Always include a few good manual URLs for each blank project.  
-- Increase `MAX_URLS_PER_PROJECT` to 6–8 for richer context.  
-- Once stable, raise snippet length in `extractor.py` for deeper extractions.  
-- For debugging, open `data/cache/<Project>/record_debug.json`.  
-
-## 🧩  10  Folder Structure
+## 🗂 Folder Structure
 
 ```
 wot-poc/
@@ -186,15 +105,14 @@ wot-poc/
   │   ├─ input.xlsx
   │   ├─ output.xlsx
   │   └─ cache/<Project>/
-  │       ├─ manual_urls.txt
-  │       ├─ urls.json
-  │       ├─ texts/*.json
-  │       └─ record_debug.json
+  │      ├─ urls.json
+  │      ├─ texts/*.json
+  │      └─ record_debug.json
   ├─ src/
   │   ├─ main.py
-  │   ├─ extractor.py
-  │   ├─ scraper.py
   │   ├─ searcher.py
+  │   ├─ scraper.py
+  │   ├─ extractor.py
   │   ├─ schema.py
   │   ├─ validator.py
   │   ├─ export_excel.py
@@ -203,13 +121,3 @@ wot-poc/
   ├─ requirements.txt
   └─ README.md
 ```
-
-## ✅  11  Summary
-
-After following this README, **anyone** can:
-1. Install Python and Ollama.  
-2. Pull and run the Llama 3.1 model locally.  
-3. Run `python src/main.py --targets auto`.  
-4. Open `data/output.xlsx` to review AI-filled fields and evidence.
-
-No API keys, no cloud usage — everything runs **locally** and reproducibly.

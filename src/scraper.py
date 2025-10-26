@@ -1,4 +1,3 @@
-# src/scraper.py
 import os, json, time, re
 from pathlib import Path
 from typing import List, Dict, Any, Tuple, Optional
@@ -19,11 +18,11 @@ UA = os.getenv(
     "(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
 )
 CONNECT_TIMEOUT = float(os.getenv("SCRAPE_CONNECT_TIMEOUT", "10"))
-READ_TIMEOUT = float(os.getenv("SCRAPE_READ_TIMEOUT", "25"))
-MAX_RETRIES = int(os.getenv("SCRAPE_MAX_RETRIES", "3"))
-BACKOFF = float(os.getenv("SCRAPE_BACKOFF", "0.5"))
-MAX_BYTES = int(os.getenv("SCRAPE_MAX_BYTES", str(2_000_000)))  # 2 MB cap
-SLEEP_BETWEEN = float(os.getenv("SCRAPE_SLEEP_BETWEEN", "0.4"))
+READ_TIMEOUT   = float(os.getenv("SCRAPE_READ_TIMEOUT", "25"))
+MAX_RETRIES    = int(os.getenv("SCRAPE_MAX_RETRIES", "3"))
+BACKOFF        = float(os.getenv("SCRAPE_BACKOFF", "0.5"))
+MAX_BYTES      = int(os.getenv("SCRAPE_MAX_BYTES", str(2_000_000)))  # 2 MB cap
+SLEEP_BETWEEN  = float(os.getenv("SCRAPE_SLEEP_BETWEEN", "0.4"))
 # -------------------------------------
 
 
@@ -88,7 +87,8 @@ def clean_html(html_bytes: Optional[bytes], url: str, content_type: str) -> str:
     if not html_bytes:
         return ""
     if "pdf" in (content_type or "").lower():
-        return ""  # TODO: add pdf extract if needed
+        # TODO: If needed, add a PDF text extractor here
+        return ""
     text = _extract_trafilatura(html_bytes, url)
     if text and len(text) > 300:
         return text
