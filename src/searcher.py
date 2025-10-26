@@ -1,216 +1,226 @@
-# src/extractor.py
-import os, json, requests
-from typing import Dict, Any, List
+# src/searcher.py
+import os, json, time
+from pathlib import Path
+from typing import List, Dict
+from urllib.parse import urlparse, urlsplit, parse_qs, unquote
+
+import requests
+from bs4 import BeautifulSoup
 from dotenv import load_dotenv
-from tenacity import retry, stop_after_attempt, wait_exponential
 
-from schema import normalize_status, normalize_fd, normalize_year, _name_header
-
-# Load environment (.env) before reading any vars
+# Load .env so SEARCH_PROVIDER / SERPAPI_... are visible
 load_dotenv()
 
-# -------- Provider selection --------
-PROVIDER = os.getenv("LLM_PROVIDER", "ollama").lower()  # 'openai' | 'ollama'
+# ---------- Env & defaults ----------
+SEARCH_PROVIDER = os.getenv("SEARCH_PROVIDER", "ddghtml").lower()  # ddghtml | serpapi
+BACKOFF = float(os.getenv("SEARCH_BACKOFF_SECONDS", "2"))
+MAX_URLS = int(os.getenv("MAX_URLS_PER_PROJECT", "6"))
 
-# -------- OpenAI config --------
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
-OPENAI_KEY = os.getenv("OPENAI_API_KEY", "")
-OPENAI_TEMPERATURE = float(os.getenv("OPENAI_TEMPERATURE", "0"))
-# Chat Completions uses 'max_tokens' (we keep old env name for compatibility)
-OPENAI_MAX_TOKENS = int(os.getenv("OPENAI_MAX_OUTPUT_TOKENS", "1200"))
+# SerpAPI config
+SERPAPI_API_KEY = os.getenv("SERPAPI_API_KEY", "")
+SERPAPI_ENGINE = os.getenv("SERPAPI_ENGINE", "google").lower()  # google | bing | duckduckgo
 
-# -------- Ollama config --------
-OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434").rstrip("/")
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.1")
-
-SYSTEM = (
-    "You are a meticulous research assistant for digital identity (SSI/DI) projects. "
-    "Use ONLY the provided context. If a value is not present in the context, set it to 'Failed to disclose'. "
-    "Return STRICT JSON keyed by the given headers. "
-    "Include an `_evidence` array with objects: field, value, source_url, source_type, confidence. "
-    "Use enums when obvious: Status=[Announced,Pilot,Launched,Discontinued]. "
-    "Ternary fields use [True,False,Failed to disclose]. "
-    "Year fields should be a 4-digit year when discoverable."
+UA = os.getenv(
+    "SEARCH_UA",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 13_6) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
 )
+HEADERS = {
+    "User-Agent": UA,
+    "Accept": "text/html,application/xhtml+xml,*/*",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Cache-Control": "no-cache",
+}
+DISALLOW = ("facebook.com","instagram.com","tiktok.com","pinterest.com","reddit.com")
+# ------------------------------------
 
-def _repair_json(s: str) -> str:
-    """Trim to the outermost JSON object if the model returned extra text."""
-    try:
-        json.loads(s)
-        return s
-    except Exception:
-        pass
-    start, end = s.find("{"), s.rfind("}")
-    if start != -1 and end > start:
+def _looks_ok(u: str) -> bool:
+    if not u or not u.startswith("http"):
+        return False
+    host = urlparse(u).netloc.lower()
+    if any(bad in host for bad in DISALLOW):
+        return False
+    return True
+
+def _clean_ddg_url(u: str) -> str:
+    # DuckDuckGo sometimes wraps links: /l/?kh=-1&uddg=<encoded>
+    if "uddg=" in u:
         try:
-            json.loads(s[start:end + 1])
-            return s[start:end + 1]
+            q = parse_qs(urlsplit(u).query)
+            v = q.get("uddg", [""])[0]
+            return unquote(v)
         except Exception:
-            pass
-    return "{}"
+            return u
+    return u
 
-# ---------- LLM backends ----------
-def _openai_chat_json(messages: List[Dict[str, str]]) -> str:
-    """Call OpenAI Chat Completions with JSON response format."""
-    url = "https://api.openai.com/v1/chat/completions"
-    headers = {
-        "Authorization": f"Bearer {OPENAI_KEY}",
-        "Content-Type": "application/json",
-    }
-    payload = {
-        "model": OPENAI_MODEL,
-        "temperature": OPENAI_TEMPERATURE,
-        "response_format": {"type": "json_object"},
-        "messages": messages,
-        # ✅ correct key for Chat Completions:
-        "max_tokens": OPENAI_MAX_TOKENS,
-    }
-    r = requests.post(url, json=payload, headers=headers, timeout=120)
-    try:
-        r.raise_for_status()
-    except requests.HTTPError as e:
-        # Surface response body for debugging
-        body = ""
-        try:
-            body = r.text[:1200]
-        except Exception:
-            pass
-        raise requests.HTTPError(f"{e} :: body={body}") from e
-    j = r.json()
-    return j["choices"][0]["message"]["content"]
-
-def _ollama_chat_json(messages: List[Dict[str, str]]) -> str:
-    """Call Ollama chat endpoint with json output format."""
-    url = f"{OLLAMA_HOST}/api/chat"
-    payload = {
-        "model": OLLAMA_MODEL,
-        "messages": messages,
-        "stream": False,
-        "format": "json",
-        "options": {"temperature": 0.0, "num_ctx": 4096, "num_predict": 1024},
-    }
-    r = requests.post(url, json=payload, timeout=600)
-    try:
-        r.raise_for_status()
-    except requests.HTTPError as e:
-        # Show body to help debug local model issues
-        body = ""
-        try:
-            body = r.text[:1200]
-        except Exception:
-            pass
-        raise requests.HTTPError(f"{e} :: body={body}") from e
-    j = r.json()
-    # Ollama may return either {message:{content}} or {response: "..."}
-    return j.get("message", {}).get("content", "") or j.get("response", "")
-
-def _chat_json(messages: List[Dict[str, str]]) -> str:
-    if PROVIDER == "openai":
-        if not OPENAI_KEY:
-            raise RuntimeError("OPENAI_API_KEY not set but LLM_PROVIDER=openai")
-        return _openai_chat_json(messages)
-    return _ollama_chat_json(messages)
-
-# ---------- Main extraction ----------
-@retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=8))
-def extract_record(project_name: str, headers: List[str], pages: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """
-    Given project name, headers from client sheet, and scraped pages [{url,title,text,...}],
-    return a dict keyed by headers + _evidence.
-    """
-    print(f"[extract] {project_name}: pages received={len(pages)}")
-
-    # Build compact context: up to 3 pages, ~1000 chars each to control token usage
-    snippets: List[str] = []
-    for p in pages:
-        t = p.get("text", "") or ""
-        u = p.get("url", "") or ""
-        if t.strip():
-            snippets.append(f"[URL]{u}\n{t[:1000]}")
-        if len(snippets) >= 3:
-            break
-
-    name_h = _name_header(headers)
-    print(f"[extract] {project_name}: using {len(snippets)} page snippets")
-
-    # If still no context, return a minimal row so export can proceed
-    if not snippets:
-        data = {h: "" for h in headers}
-        data[name_h] = project_name
-        data["_evidence"] = []
-        print(f"[extract] {project_name}: no context → minimal row only")
-        return data
-
-    context = "\n\n".join(snippets)
-    user_payload = {
-        "project": project_name,
-        "headers": headers,
-        "instructions": (
-            "Use allowed enums for Status and ternary fields; use 4-digit years when obvious. "
-            "Every non-empty field must include an evidence entry with a URL present in the context."
-        ),
-        "context": context,
-    }
-    messages = [
-        {"role": "system", "content": SYSTEM},
-        {"role": "user", "content": json.dumps(user_payload)},
+def _make_queries(name: str) -> List[str]:
+    base = name.strip()
+    quoted = f'"{base}"' if " " in base else base
+    terms = [
+        "digital identity", "self-sovereign identity", "decentralized identity",
+        "verifiable credentials", "DID method", "wallet", "eIDAS", "official site",
     ]
+    qs: List[str] = []
+    for t in terms:
+        qs.append(f"{base} {t}")
+        qs.append(f"{quoted} {t}")
+    qs += [f"{base} identity project", f"{base} site"]
+    # de-dupe keep order
+    seen = set(); out=[]
+    for q in qs:
+        k = q.lower()
+        if k not in seen:
+            seen.add(k); out.append(q)
+    return out
 
-    print(f"[extract] {project_name}: calling LLM… (provider={PROVIDER})")
-    raw = _chat_json(messages)
-    raw = _repair_json(raw)
-    data = json.loads(raw or "{}")
+# ---------- ddghtml path (DuckDuckGo + Bing scraping) ----------
+def _ddg_html(query: str, want: int) -> List[Dict[str,str]]:
+    url = "https://duckduckgo.com/html/"
+    out: List[Dict[str,str]] = []
+    try:
+        r = requests.get(url, params={"q": query}, headers=HEADERS, timeout=20)
+        print(f"[search] ddg html: {r.status_code} {len(r.content)} bytes")
+        soup = BeautifulSoup(r.text, "html.parser")
+        selectors = ["a.result__a","a.result__url",".result__title a","a.js-result-title-link"]
+        for sel in selectors:
+            for a in soup.select(sel):
+                href = _clean_ddg_url(a.get("href",""))
+                if _looks_ok(href):
+                    out.append({"url": href, "title": a.get_text(strip=True)})
+                if len(out) >= want:
+                    return out
+        return out
+    except Exception as e:
+        print(f"[search] ddg html error: {e}")
+        return out
 
-    # ---------- Normalizations ----------
-    if "Status" in data:
-        data["Status"] = normalize_status(data.get("Status"))
+def _ddg_lite(query: str, want: int) -> List[Dict[str,str]]:
+    url = "https://duckduckgo.com/lite/"
+    out: List[Dict[str,str]] = []
+    try:
+        r = requests.get(url, params={"q": query}, headers=HEADERS, timeout=20)
+        print(f"[search] ddg lite: {r.status_code} {len(r.content)} bytes")
+        soup = BeautifulSoup(r.text, "html.parser")
+        for a in soup.select("table tr td:nth-child(2) a"):
+            href = _clean_ddg_url(a.get("href",""))
+            if _looks_ok(href):
+                out.append({"url": href, "title": a.get_text(strip=True)})
+            if len(out) >= want:
+                break
+        return out
+    except Exception as e:
+        print(f"[search] ddg lite error: {e}")
+        return out
 
-    for k in [
-        "Endorses/Uses ZKP",
-        "Has Exportable Credentials",
-        "Credential and Key Storage",
-        "Targets Holders",
-        "Targets Issuers",
-        "Targets Verifiers",
-    ]:
-        if k in data:
-            data[k] = normalize_fd(data.get(k))
+def _bing_html(query: str, want: int) -> List[Dict[str,str]]:
+    url = "https://www.bing.com/search"
+    out: List[Dict[str,str]] = []
+    try:
+        r = requests.get(url, params={"q": query, "setlang": "en-US"}, headers=HEADERS, timeout=20)
+        print(f"[search] bing html: {r.status_code} {len(r.content)} bytes")
+        soup = BeautifulSoup(r.text, "html.parser")
+        for a in soup.select("li.b_algo h2 a"):
+            href = a.get("href","")
+            if _looks_ok(href):
+                out.append({"url": href, "title": a.get_text(strip=True)})
+            if len(out) >= want:
+                break
+        return out
+    except Exception as e:
+        print(f"[search] bing html error: {e}")
+        return out
 
-    for k in ["Announcement", "Launch"]:
-        if k in data:
-            data[k] = normalize_year(data.get(k))
+def _ddghtml_search(query: str, want: int) -> List[Dict[str,str]]:
+    hits = _ddg_html(query, want)
+    if not hits:
+        time.sleep(BACKOFF)
+        hits = _ddg_lite(query, want)
+    if not hits:
+        time.sleep(BACKOFF)
+        hits = _bing_html(query, want)
+    return hits
 
-    # Evidence guard
-    ev = data.get("_evidence", [])
-    if not isinstance(ev, list):
-        ev = []
-    data["_evidence"] = ev
+# ---------- SerpAPI path ----------
+def _serpapi_search(query: str, want: int) -> List[Dict[str, str]]:
+    if not SERPAPI_API_KEY:
+        print("[search] serpapi: missing SERPAPI_API_KEY")
+        return []
+    engine = SERPAPI_ENGINE  # google | bing | duckduckgo
+    url = "https://serpapi.com/search.json"
+    params = {"q": query, "engine": engine, "api_key": SERPAPI_API_KEY, "num": max(10, want*2)}
+    out: List[Dict[str, str]] = []
+    try:
+        r = requests.get(url, params=params, timeout=30)
+        print(f"[search] serpapi {engine}: {r.status_code}")
+        j = r.json()
+        for item in j.get("organic_results") or []:
+            u = item.get("link") or item.get("url") or ""
+            t = item.get("title") or ""
+            if _looks_ok(u):
+                out.append({"url": u, "title": t})
+            if len(out) >= want:
+                return out
+        for block_name in ("news_results", "top_stories", "inline_videos", "answer_box"):
+            blk = j.get(block_name) or []
+            if isinstance(blk, dict):
+                blk = [blk]
+            for item in blk:
+                u = item.get("link") or item.get("url") or ""
+                t = item.get("title") or ""
+                if _looks_ok(u):
+                    out.append({"url": u, "title": t})
+                if len(out) >= want:
+                    return out
+        return out
+    except Exception as e:
+        print(f"[search] serpapi error: {e}")
+        return out
 
-    # Ensure all headers present
-    for h in headers:
-        if h not in data:
-            data[h] = ""
+def _dedupe_keep_order(items: List[Dict[str,str]]) -> List[Dict[str,str]]:
+    seen = set(); out=[]
+    for it in items:
+        u = it.get("url","")
+        if u not in seen:
+            seen.add(u); out.append(it)
+    return out
 
-    # Ensure correct name column is set
-    if not data.get(name_h):
-        data[name_h] = project_name
+# ---------- PUBLIC API ----------
+def search_project(name: str, out_dir: Path) -> List[Dict[str,str]]:
+    """Return a list of {'url','title'} for the given project name, caching to urls.json."""
+    print(f"[search] {name}: start (target={MAX_URLS}) [provider={SEARCH_PROVIDER}]")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_dir / "urls.json"
 
-    # Optional: map first evidence URLs into "<Field> Source" columns if they exist
-    if ev:
-        headers_lower = {h.lower(): h for h in headers}
-        for e in ev:
-            field = (e.get("field") or "").strip()
-            src = (e.get("source_url") or "").strip()
-            if not field or not src:
-                continue
-            src_col = f"{field} Source"
-            if src_col.lower() in headers_lower:
-                data[headers_lower[src_col.lower()]] = src
+    # manual seeds (if any)
+    results: List[Dict[str,str]] = []
+    manual = out_dir / "manual_urls.txt"
+    if manual.exists():
+        count=0
+        for line in manual.read_text(encoding="utf-8").splitlines():
+            u = line.strip()
+            if u and _looks_ok(u):
+                results.append({"url": u, "title": ""}); count+=1
+        print(f"[search] {name}: manual seeds -> {count}")
+    else:
+        print(f"[search] {name}: manual seeds -> 0")
 
-    filled = sum(
-        1
-        for k, v in data.items()
-        if k != "_evidence" and isinstance(v, str) and v.strip()
-    )
-    print(f"[extract] {project_name}: fields filled={filled}")
-    return data
+    queries = _make_queries(name)
+    if not queries:
+        print(f"[search] {name}: no queries generated")
+        out_path.write_text(json.dumps(results, indent=2), encoding="utf-8")
+        return results
+
+    for q in queries:
+        if len(results) >= MAX_URLS:
+            break
+        time.sleep(BACKOFF)
+        print(f"[search] {name}: query -> {q}")
+        need = MAX_URLS - len(results)
+        hits = _serpapi_search(q, want=need) if SEARCH_PROVIDER == "serpapi" else _ddghtml_search(q, want=need)
+        results.extend(hits)
+        results = _dedupe_keep_order(results)
+        print(f"[search] {name}: found so far -> {len(results)}")
+
+    print(f"[search] {name}: done, total urls={len(results)}")
+    out_path.write_text(json.dumps(results, indent=2), encoding="utf-8")
+    return results
