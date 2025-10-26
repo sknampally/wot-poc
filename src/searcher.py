@@ -9,6 +9,13 @@ load_dotenv()
 MAX_URLS = int(os.getenv("MAX_URLS_PER_PROJECT", "10"))
 BACKOFF = float(os.getenv("SEARCH_BACKOFF_SECONDS", "3"))
 RETRIES = int(os.getenv("MAX_SEARCH_RETRIES", "3"))
+# --- Configuration from environment ---
+REGION = os.getenv("SEARCH_REGION", "us-en")
+SAFESEARCH = os.getenv("SEARCH_SAFESEARCH", "moderate")
+BACKOFF = float(os.getenv("SEARCH_BACKOFF_SECONDS", "2"))
+MAX_URLS = int(os.getenv("MAX_URLS_PER_PROJECT", "3"))
+MAX_RETRIES = int(os.getenv("MAX_SEARCH_RETRIES", "3"))
+
 
 # You can edit or extend the query list if needed
 BASE_QUERIES = [
@@ -65,6 +72,7 @@ def search_project(name: str, out_dir: Path) -> List[Dict]:
     Writes urls.json to cache and returns the list.
     Also supports an optional manual seed file: manual_urls.txt
     """
+    print(f"[search] {name}: start (target={MAX_URLS})")
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / "urls.json"
 
@@ -88,11 +96,13 @@ def search_project(name: str, out_dir: Path) -> List[Dict]:
             if len(results_all) >= MAX_URLS:
                 out_path.write_text(json.dumps(results_all, indent=2), encoding="utf-8")
                 return results_all
-
+    
+    print(f"[search] {name}: manual seeds -> {len(results_all)}")
     # Randomize query order to spread load
     queries = BASE_QUERIES[:]
     random.shuffle(queries)
 
+    print(f"[search] {name}: querying DDG (region={REGION}, safe={SAFESEARCH})")
     with DDGS() as ddgs:
         for q in queries:
             query = q.format(name=name)
@@ -116,6 +126,7 @@ def search_project(name: str, out_dir: Path) -> List[Dict]:
             if len(results_all) >= MAX_URLS:
                 break
 
+    print(f"[search] {name}: done, total urls={len(results_all)}")
     # Persist to cache
     out_path.write_text(json.dumps(results_all, indent=2), encoding="utf-8")
     return results_all

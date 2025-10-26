@@ -43,6 +43,7 @@ def _ollama_chat_json(messages):
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=8))
 def extract_record(project_name: str, headers: List[str], pages: List[Dict[str, Any]]) -> Dict[str, Any]:
     # Build compact context (first 2 pages, short snippets) for reliability
+    print(f"[extract] {project_name}: pages received={len(pages)}")
     snippets=[]
     for p in pages:
         t=p.get("text",""); u=p.get("url","")
@@ -51,10 +52,12 @@ def extract_record(project_name: str, headers: List[str], pages: List[Dict[str, 
 
     # If we have no context at all, return a skeleton so the row writes with the name column set
     name_h = _name_header(headers)
+    print(f"[extract] {project_name}: using {len(snippets)} page snippets") 
     if not snippets:
         data={h:"" for h in headers}
         data[name_h]=project_name
         data["_evidence"]=[]
+        print(f"[extract] {project_name}: no context → minimal row only") 
         return data
 
     context="\n\n".join(snippets)
@@ -72,6 +75,7 @@ def extract_record(project_name: str, headers: List[str], pages: List[Dict[str, 
     }
     messages=[{"role":"system","content":SYSTEM},{"role":"user","content":json.dumps(user_payload)}]
 
+    print(f"[extract] {project_name}: calling LLM…")
     raw=_ollama_chat_json(messages); raw=_repair_json(raw)
     data=json.loads(raw or "{}")
 
@@ -105,5 +109,5 @@ def extract_record(project_name: str, headers: List[str], pages: List[Dict[str, 
             src_col = f"{f} Source"
             if src_col.lower() in headers_lower:
                 data[headers_lower[src_col.lower()]] = src
-
+    print(f"[extract] {project_name}: fields filled={filled}")
     return data
