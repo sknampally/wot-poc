@@ -6,56 +6,71 @@ It reads the existing `input.xlsx`, identifies rows with missing fields, scrapes
 
 ---
 
-## 🚀 1  Prerequisites — Install Once
+## ⚡ Quick Start (All Steps in One Block)
 
-### A  Install Python 3.12 or newer
-| Platform | Command / Download |
-|-----------|--------------------|
-| **macOS** | `brew install python`  or  [python.org/downloads](https://www.python.org/downloads/) |
-| **Windows** | [Download Installer](https://www.python.org/downloads/windows/) → check ✅ *Add Python to PATH* |
-| **Linux** | `sudo apt install python3 python3-venv python3-pip` |
+Follow these steps exactly to get from zero setup → working output file.
 
-Verify:
 ```bash
-python3 --version
-'''
+# 1️⃣ Clone or copy the project
+git clone https://github.com/sknampally/wot-poc.git
+cd wot-poc
 
-## B Install Git (optional)
+# 2️⃣ Install Python 3.12+ if not installed
+# macOS
+brew install python
+# Windows: download from https://www.python.org/downloads/
+# Linux
+sudo apt install python3 python3-venv python3-pip
 
-| Platform    | Command / Link                                         |
-| ----------- | ------------------------------------------------------ |
-| **macOS**   | `brew install git`                                     |
-| **Windows** | [git-scm.com/downloads](https://git-scm.com/downloads) |
-| **Linux**   | `sudo apt install git`                                 |
+# 3️⃣ (Optional) Install Git if not installed
+# macOS
+brew install git
+# Windows: https://git-scm.com/downloads
+# Linux
+sudo apt install git
 
-## C Install Ollama + Llama 3.1 (Local Model)
-
-Ollama runs LLMs locally — no API keys or cloud costs.
-
-macOS
+# 4️⃣ Install Ollama and the local Llama 3.1 model
+# macOS
 brew install ollama
-brew services start ollama        # start background service
-ollama pull llama3.1              # ~4 GB download
-
-Windows
-
-Download → ollama.com/download
-Start Ollama from the Start Menu (it runs as a service).
-Then in PowerShell:
-
+brew services start ollama
 ollama pull llama3.1
 
-Verify:
+# Windows
+# Download from https://ollama.com/download
+# Then run in PowerShell:
+ollama pull llama3.1
+
+# Linux
+curl -fsSL https://ollama.com/install.sh | sh
+ollama pull llama3.1
+
+# Verify Ollama
 ollama run llama3.1 "Hello"
 
-## 🗂 2 Project Setup
-A Get the project folder
-Clone or copy the wot-poc folder (for example ~/wot-poc):
+# 5️⃣ Create Python virtual environment and install dependencies
+python3 -m venv .venv
+source .venv/bin/activate           # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
 
-wot-poc/
-  data/
-    input.xlsx
-  src/
-  README.md
-  requirements.txt
-  .env
+# 6️⃣ Ensure .env is configured correctly
+# (default should already be fine)
+cat .env
+# USE_OLLAMA=true
+# OLLAMA_HOST=http://localhost:11434
+# OLLAMA_MODEL=llama3.1
+# MAX_URLS_PER_PROJECT=3
+# USE_MANUAL_ONLY=true
+
+# 7️⃣ Make sure Ollama is running
+ollama serve
+
+# 8️⃣ Place the client-provided Excel file
+# Replace the existing one at:
+data/input.xlsx
+
+# 9️⃣ Run the script (auto-detects empty rows)
+python src/main.py --targets auto
+
+# 10️⃣ Open results
+# See structured AI-filled output in:
+data/output.xlsx
