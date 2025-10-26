@@ -1,4 +1,4 @@
-import argparse, json
+import argparse, json, os
 from pathlib import Path
 import pandas as pd
 
@@ -28,8 +28,10 @@ def detect_targets_from_input(input_path: Path, mode: str = "auto", limit: int =
 
     if mode == "all":
         return list(dict.fromkeys(non_empty.tolist()))  # preserve order, unique
+
     # auto: pick emptiest rows
-    empties = df.drop(columns=[name_col], errors="ignore").isna() | (df.drop(columns=[name_col], errors="ignore").astype(str).apply(lambda s: s.str.strip()==""))
+    df_wo_name = df.drop(columns=[name_col], errors="ignore")
+    empties = df_wo_name.isna() | (df_wo_name.astype(str).apply(lambda s: s.str.strip()==""))
     empty_counts = empties.sum(axis=1)
     candidates = df[names != ""].copy()
     candidates["empty_count"] = empty_counts[names != ""]
@@ -58,7 +60,32 @@ def run_for_project(name: str, headers: list[str]) -> tuple[dict, dict]:
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--targets", type=str, required=True, help='"auto", "all", or comma-separated names')
+    p.add_argument("--limit", type=int, default=0, help="Max projects to process (0 = no limit)")
+
+    # Runtime LLM overrides (CLI > .env)
+    p.add_argument("--provider", type=str, default=None, choices=["openai","ollama"], help="LLM provider (overrides .env)")
+    p.add_argument("--model", type=str, default=None, help="LLM model name (overrides .env)")
+    p.add_argument("--temperature", type=float, default=None, help="LLM temperature (overrides .env)")
+    p.add_argument("--max-output-tokens", type=int, default=None, help="LLM max output tokens (overrides .env)")
+
     args = p.parse_args()
+
+    # Apply runtime overrides via env for extractor.py to read
+    if args.provider:
+        os.environ["LLM_PROVIDER"] = args.provider
+    if args.model:
+        # Route to the right env var by provider if specified, else set both
+        if args.provider == "openai":
+            os.environ["OPENAI_MODEL"] = args.model
+        elif args.provider == "ollama":
+            os.environ["OLLAMA_MODEL"] = args.model
+        else:
+            os.environ["OPENAI_MODEL"] = args.model
+            os.environ["OLLAMA_MODEL"] = args.model
+    if args.temperature is not None:
+        os.environ["OPENAI_TEMPERATURE"] = str(args.temperature)
+    if args.max_output_tokens is not None:
+        os.environ["OPENAI_MAX_OUTPUT_TOKENS"] = str(args.max_output_tokens)
 
     headers = load_headers(INPUT_XLSX)
 
@@ -72,13 +99,16 @@ def main():
     else:
         targets = [x.strip() for x in args.targets.split(",") if x.strip()]
 
+    if args.limit and len(targets) > args.limit:
+        targets = targets[:args.limit]
+        print(f"[limit] processing first {args.limit} targets")
+
     recs, vals = [], []
     for name in targets:
         print("Processing", name)
         r, v = run_for_project(name, headers)
         recs.append(r); vals.append(v)
 
-    # Write outputs (no merging into client sheet)
     # 1) AI Data
     export_ai_sheet(headers, recs, OUTPUT_XLSX)
     # 2) Comparison vs Client
