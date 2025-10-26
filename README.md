@@ -18,6 +18,7 @@ It reads the existing `input.xlsx`, identifies rows with missing fields, scrapes
 Verify:
 ```bash
 python3 --version
+'''
 
 ## B Install Git (optional)
 
