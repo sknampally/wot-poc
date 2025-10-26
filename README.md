@@ -4,8 +4,6 @@
 This Proof of Concept automatically collects and structures data for **Digital Identity (SSI/DI)** projects in the same Excel format used by the client.  
 It reads the existing `input.xlsx`, identifies rows with missing fields, scrapes public information, asks a **local AI model (Llama 3.1)** to fill the gaps, and writes results to `output.xlsx`.
 
----
-
 ## 🚀 1  Prerequisites — Install Once
 
 ### A  Install Python 3.12 or newer
@@ -20,8 +18,6 @@ Verify installation:
 python3 --version
 ```
 
----
-
 ### B  Install Git (optional)
 If you don’t have it installed:
 
@@ -30,8 +26,6 @@ If you don’t have it installed:
 | **macOS** | `brew install git` |
 | **Windows** | [git-scm.com/downloads](https://git-scm.com/downloads) |
 | **Linux** | `sudo apt install git` |
-
----
 
 ### C  Install Ollama + Llama 3.1 (local model)
 Ollama lets you run large language models locally — **no API key or internet dependency**.
@@ -63,8 +57,6 @@ ollama run llama3.1 "Hello"
 ```
 If it replies, you’re ready.
 
----
-
 ## 🗂  2  Project Setup
 
 ### A  Get the project folder
@@ -88,8 +80,6 @@ source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
----
-
 ## ⚙️  3  Configure the environment
 
 Your `.env` file (included) should look like:
@@ -104,8 +94,6 @@ USE_MANUAL_ONLY=true
 > **Tip:**  
 > To let the script find URLs automatically, set  
 > `USE_MANUAL_ONLY=false`.
-
----
 
 ## 🧩  4  Running the POC
 
@@ -136,8 +124,6 @@ What happens:
 4. It merges results into `data/output.xlsx`, keeping existing data intact.  
 5. It adds a **Review** sheet listing evidence URLs and validation notes.
 
----
-
 ## 🌐  5  (Recommended) Add Manual URLs
 You can guide the model by supplying 2-4 official sources per project:
 
@@ -150,8 +136,6 @@ Each line = one URL (e.g., official site, press release, GitHub repo).
 
 When `USE_MANUAL_ONLY=true`, the script uses only these URLs — no online search.
 
----
-
 ## 📄  6  Outputs
 
 | File | Description |
@@ -160,8 +144,6 @@ When `USE_MANUAL_ONLY=true`, the script uses only these URLs — no online searc
 | **Review sheet** | Field values, source URLs, and validation issues |
 | **data/cache/<Project>/record_debug.json** | Full AI JSON response |
 | **data/cache/<Project>/texts/*.json** | Scraped text from each page |
-
----
 
 ## 🧰  7  Troubleshooting
 
@@ -172,8 +154,6 @@ When `USE_MANUAL_ONLY=true`, the script uses only these URLs — no online searc
 | First run very slow | Normal — model loads into memory (1-2 min) |
 | Output blank | Add manual URLs or set `USE_MANUAL_ONLY=true` |
 | Wrong Python path (macOS/Xcode) | Use `python3` explicitly (from Homebrew) |
-
----
 
 ## 🧾  8  Example Run Log
 
@@ -192,15 +172,11 @@ Done → /Users/<user>/wot-poc/data/output.xlsx
 
 Open `data/output.xlsx` → check both the **main sheet** and **Review** sheet.
 
----
-
 ## 💡  9  Tips for Better Results
 - Always include a few good manual URLs for each blank project.  
 - Increase `MAX_URLS_PER_PROJECT` to 6–8 for richer context.  
 - Once stable, raise snippet length in `extractor.py` for deeper extractions.  
 - For debugging, open `data/cache/<Project>/record_debug.json`.  
-
----
 
 ## 🧩  10  Folder Structure
 
@@ -227,8 +203,6 @@ wot-poc/
   ├─ requirements.txt
   └─ README.md
 ```
-
----
 
 ## ✅  11  Summary
 
