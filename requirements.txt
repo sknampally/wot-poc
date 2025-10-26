@@ -1,12 +1,14 @@
-python-dotenv==1.0.1
-pandas==2.2.2
-openpyxl==3.1.5
-requests==2.32.3
-tqdm==4.66.4
-trafilatura==1.12.2
-readability-lxml==0.8.1
-beautifulsoup4==4.12.3
-duckduckgo-search==6.2.13
-python-dateutil==2.9.0
-pycountry==24.6.1
-tenacity==8.5.0
+pandas>=2.2
+openpyxl>=3.1
+requests>=2.31
+duckduckgo_search>=6.0     # (ok to keep even if we use HTML fallback)
+beautifulsoup4>=4.12
+readability-lxml>=0.8.1
+lxml_html_clean>=0.4.3
+lxml>=5.1.0
+trafilatura>=1.8
+python-dotenv>=1.0
+tenacity>=8.2
+tqdm>=4.66
+pycountry>=24.6
+dateparser>=1.2

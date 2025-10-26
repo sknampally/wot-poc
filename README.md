@@ -84,11 +84,36 @@ pip install -r requirements.txt
 
 Your `.env` file (included) should look like:
 ```
-USE_OLLAMA=true
+# ====== CORE PATHS / MODES ======
+USE_MANUAL_ONLY=false             # we want real web search for the POC
+MAX_URLS_PER_PROJECT=6
+
+# ====== SEARCHER (HTML DDG/Bing fallback) ======
+SEARCH_REGION=us-en               # for logs only
+SEARCH_SAFESEARCH=moderate
+SEARCH_BACKOFF_SECONDS=2          # increase to 3-4 if you see throttling
+SEARCH_UA=Mozilla/5.0 (Macintosh; Intel Mac OS X 13_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36
+
+# ====== SCRAPER ======
+SCRAPE_CONNECT_TIMEOUT=10
+SCRAPE_READ_TIMEOUT=25
+SCRAPE_MAX_RETRIES=3
+SCRAPE_BACKOFF=0.5
+SCRAPE_MAX_BYTES=2000000
+SCRAPE_SLEEP_BETWEEN=0.4
+SCRAPE_UA=Mozilla/5.0 (Macintosh; Intel Mac OS X 13_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36
+
+# ====== LLM PROVIDER SWITCH (CLI can override these) ======
+LLM_PROVIDER=ollama               # openai | ollama
+# -- OpenAI (used when LLM_PROVIDER=openai) --
+OPENAI_API_KEY=                   # set this if you use OpenAI
+OPENAI_MODEL=gpt-4o-mini
+OPENAI_TEMPERATURE=0
+OPENAI_MAX_OUTPUT_TOKENS=1200
+
+# -- Ollama (used when LLM_PROVIDER=ollama) --
 OLLAMA_HOST=http://localhost:11434
 OLLAMA_MODEL=llama3.1
-MAX_URLS_PER_PROJECT=3
-USE_MANUAL_ONLY=true
 ```
 
 > **Tip:**  
@@ -114,7 +139,17 @@ It should contain four filled sample rows and several blank rows for projects to
 
 ### Step 4  Run the POC
 ```bash
-python src/main.py --targets auto
+Local (Ollama)
+ollama pull llama3.1
+python src/main.py --targets all --provider ollama --model llama3.1 # -- for all the Project ID's from Input.xlsx --
+or
+python src/main.py --targets "<NAME>" --provider ollama --model llama3.1 # -- for sepecfic Project ID's from Input.xlsx --
+
+OpenAI:
+export OPENAI_API_KEY=sk-...
+python src/main.py --targets all --provider openai --model gpt-4o-mini # -- for all the Project ID's from Input.xlsx --
+or
+python src/main.py --targets "<NAME>" --provider openai --model gpt-4o-mini # -- for sepecfic Project ID's from Input.xlsx --
 ```
 
 What happens:
