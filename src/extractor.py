@@ -1,3 +1,5 @@
+import re
+from pathlib import Path
 import os, json, requests
 from typing import Dict, Any, List
 from dotenv import load_dotenv
@@ -35,6 +37,207 @@ SYSTEM = (
     "• Ternary fields ∈ [True,False,Failed to disclose].\n"
     "• Year fields must be 4-digit when present.\n"
 )
+
+# minimal synonym map → target header (normalized)
+_SYNONYMS = {
+    "project": "name", "project name": "name", "product": "name",
+    "status": "status",
+    "website": "website", "url": "website", "homepage": "website", "official site": "website",
+    "description": "description", "summary": "description", "about": "description",
+    "announcement year": "announcement", "announced": "announcement",
+    "launch year": "launch", "launched": "launch",
+    "targets holders": "targets holders",
+    "targets issuers": "targets issuers",
+    "targets verifiers": "targets verifiers",
+    "endorses uses zkp": "endorses/uses zkp", "zkp": "endorses/uses zkp",
+    "has exportable credentials": "has exportable credentials",
+    "credential and key storage": "credential and key storage",
+}
+
+def _salvage_to_json_obj(raw: str):
+    """Best-effort salvage: slice outermost {...}, remove trailing commas before } and parse."""
+    if not isinstance(raw, str):
+        return {}
+    s = raw.strip()
+    i, j = s.find("{"), s.rfind("}")
+    if i == -1 or j == -1 or j <= i:
+        return {}
+    frag = s[i:j+1]
+    # remove trailing commas like `, }` or `,}` which break strict JSON
+    frag = re.sub(r",\s*}", "}", frag)
+    try:
+        return json.loads(frag)
+    except Exception:
+        return {}
+    
+def _json_load_relaxed(raw: str):
+    """
+    Robustly turn model output into a Python object.
+    Handles: normal JSON, JSON wrapped in a string, codefence wrappers, etc.
+    Returns dict/list or {} if it can't parse.
+    """
+    if not isinstance(raw, str):
+        return {}
+    s = raw.strip()
+
+    # strip ```json ... ``` fences if present
+    if s.startswith("```"):
+        # keep everything between the first and last ```
+        parts = s.split("```")
+        if len(parts) >= 3:
+            # commonly: ["", "json", "{...}", ""]
+            s = parts[2].strip() if parts[1].lower().strip() in ("json", "json5") else parts[1].strip()
+
+    # 1st load
+    try:
+        obj = json.loads(s)
+    except Exception:
+        # try to salvage by slicing between first { and last }
+        start, end = s.find("{"), s.rfind("}")
+        if start != -1 and end > start:
+            frag = s[start:end+1]
+            try:
+                obj = json.loads(frag)
+            except Exception:
+                return {}
+        else:
+            return {}
+
+    # If the result is a string that itself looks like JSON, load again (double-encoded case)
+    if isinstance(obj, str):
+        t = obj.strip()
+        if (t.startswith("{") and t.endswith("}")) or (t.startswith("[") and t.endswith("]")):
+            try:
+                obj = json.loads(t)
+            except Exception:
+                pass
+
+    # Only accept dict/list
+    if not isinstance(obj, (dict, list)):
+        return {}
+    return obj
+
+def _write_debug(project_name: str, name: str, payload: dict | list | str):
+    """Write small debug artifacts per project to help diagnose."""
+    try:
+        pdir = Path("data/cache") / project_name.replace(" ", "_")
+        pdir.mkdir(parents=True, exist_ok=True)
+        (pdir / name).write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2) if not isinstance(payload, str) else str(payload),
+            encoding="utf-8",
+        )
+    except Exception:
+        pass
+
+def _norm_k(s: str) -> str:
+    s = (s or "").strip().lower()
+    s = re.sub(r"[\s_\-]+", " ", s)      # unify separators
+    s = re.sub(r"[^a-z0-9 ]", "", s)     # drop punctuation
+    s = re.sub(r"\s+", " ", s).strip()
+    return s
+
+def _coerce_to_headers(obj, headers: list[str], project_name: str | None = None) -> dict:
+    """
+    Map model JSON to your exact Excel headers.
+    Writes a per-project debug map: data/cache/<Project>/debug_map.json
+    """
+    # unwrap wrappers
+    if isinstance(obj, list) and obj:
+        obj = obj[0]
+    if isinstance(obj, dict) and "data" in obj and isinstance(obj["data"], dict):
+        obj = obj["data"]
+    if not isinstance(obj, dict):
+        return {}
+
+    # build normalized header index
+    norm_to_header = { _norm_k(h): h for h in headers }
+
+    # figure out your "name" column (e.g., "Product Name")
+    try:
+        from schema import _name_header
+        name_col = _name_header(headers)
+    except Exception:
+        name_col = None
+
+    # synonyms (only if target header exists)
+    synonyms = {
+        "url": "website",
+        "homepage": "website",
+        "official site": "website",
+        "project announcement date": "announcement",
+        "announcement date": "announcement",
+        "announced": "announcement",
+        "launch date": "launch",
+        "launched": "launch",
+    }
+    # attach name-like aliases if we know the name column
+    if name_col:
+        for k in ("product name", "project name", "name"):
+            synonyms[k] = name_col
+
+    for syn, target in list(synonyms.items()):
+        tnorm = _norm_k(target)
+        if tnorm in norm_to_header:
+            norm_to_header[_norm_k(syn)] = norm_to_header[tnorm]
+
+    out = {h: "" for h in headers}
+    mapped, dropped = {}, []
+
+    # special mapper for “… Source” variants
+    def map_source_key(norm_key: str) -> str | None:
+        # try "<base> source" style
+        m = re.match(r"(?:live|archived)?\s*source\s+(.+)", norm_key) or re.match(r"(.+)\s+source$", norm_key)
+        if m:
+            base = m.group(1).strip()
+            candidate = f"{base} source"
+            for cand_norm, hdr in norm_to_header.items():
+                if cand_norm == candidate:
+                    return hdr
+        return None
+
+    for k, v in obj.items():
+        nk = _norm_k(str(k))
+
+        # 1) direct/synonym
+        if nk in norm_to_header:
+            out[norm_to_header[nk]] = v
+            mapped[k] = norm_to_header[nk]
+            continue
+
+        # 2) “… Source” style
+        hsrc = map_source_key(nk)
+        if hsrc:
+            out[hsrc] = v
+            mapped[k] = hsrc
+            continue
+
+        # 3) loose contains
+        hit = None
+        for cand_norm, hdr in norm_to_header.items():
+            if nk == cand_norm or nk in cand_norm or cand_norm in nk:
+                hit = hdr; break
+        if hit:
+            out[hit] = v
+            mapped[k] = hit
+        else:
+            dropped.append(k)
+
+    # write per-project debug map next to llm_raw.json
+    try:
+        if project_name:
+            proj_dir = Path("data/cache") / project_name.replace(" ", "_")
+        else:
+            proj_dir = Path("data/cache")
+        proj_dir.mkdir(parents=True, exist_ok=True)
+        (proj_dir / "debug_map.json").write_text(
+            json.dumps({"mapped": mapped, "dropped": dropped}, ensure_ascii=False, indent=2),
+            encoding="utf-8"
+        )
+    except Exception as e:
+        print(f"[map] warn: failed to write debug_map.json :: {e}")
+
+    print(f"[map] mapped={len(mapped)} dropped={len(dropped)}")
+    return out
 
 def _repair_json(s: str) -> str:
     try:
@@ -272,8 +475,28 @@ def extract_record(project_name: str, headers: List[str], pages: List[Dict[str, 
         data["_evidence"] = []
         return data
 
-    raw = _repair_json(raw)
-    data = json.loads(raw or "{}")
+    # 1) try strict JSON first
+    parsed = _json_load_relaxed(raw or "")
+
+    # 2) if that failed, try salvage
+    if not parsed:
+        parsed = _salvage_to_json_obj(raw or "")
+        if parsed:
+            print("[map] salvage parser succeeded")
+        else:
+            print("[map] parse produced empty object; writing debug_parsed.json")
+            _write_debug(project_name, "debug_parsed.json", raw or "")
+
+    # 3) proceed to coercion
+    data = _coerce_to_headers(parsed, headers, project_name=project_name)
+
+    # 4) visibility
+    if isinstance(parsed, dict):
+        print(f"[map] parsed_keys={list(parsed.keys())[:10]}")
+    elif isinstance(parsed, list):
+        print(f"[map] parsed_list_len={len(parsed)} headType={(type(parsed[0]).__name__ if parsed else 'n/a')}")
+    else:
+        print(f"[map] parsed_type={type(parsed).__name__}")
 
     # Normalizations
     if "Status" in data:
