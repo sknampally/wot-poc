@@ -1,43 +1,95 @@
 # src/searcher.py
-import os, json, time
+import os, json, time, re
 from pathlib import Path
-from typing import List, Dict
-from urllib.parse import urlparse
+from typing import List, Dict, Tuple
 import requests
-from dotenv import load_dotenv
 
-# Load .env so SEARCH_PROVIDER / SERPAPI_... are visible
-load_dotenv()
+# -----------------------
+# Runtime configuration
+# -----------------------
+SEARCH_PROVIDER = os.getenv("SEARCH_PROVIDER", "serpapi").lower()  # serpapi | ddghtml | binghtml
+SERPAPI_KEY = os.getenv("SERPAPI_API_KEY", "")
+MAX_URLS_PER_PROJECT = int(os.getenv("MAX_URLS_PER_PROJECT", "2"))
+REGION = os.getenv("SEARCH_REGION", "us-en")
+SAFESEARCH = os.getenv("SEARCH_SAFE", "moderate")
 
-# ----- Config (SerpAPI only in this minimal version) -----
-SERPAPI_API_KEY = os.getenv("SERPAPI_API_KEY", "")
-SERPAPI_ENGINE = os.getenv("SERPAPI_ENGINE", "google").lower()  # google | bing | duckduckgo
-MAX_URLS = int(os.getenv("MAX_URLS_PER_PROJECT", "6"))
-BACKOFF = float(os.getenv("SEARCH_BACKOFF_SECONDS", "1.5"))
+# Disallow low-signal hosts / file types
+DISALLOW_HOSTS = {
+    "linkedin.com", "www.linkedin.com", "x.com", "twitter.com",
+    "facebook.com", "www.facebook.com", "instagram.com", "t.co"
+}
+DISALLOW_SUFFIXES = (".pdf", ".ppt", ".pptx", ".doc", ".docx", ".zip", ".rar")
 
-DISALLOW_HOSTS = ("facebook.com", "instagram.com", "tiktok.com", "pinterest.com", "reddit.com")
+UA = os.getenv("SEARCH_UA", "Mozilla/5.0 (compatible; wot-poc-bot/0.1; +https://example.org/)")
 
-def _looks_ok(u: str) -> bool:
-    if not u or not u.startswith("http"):
+def _allowed(u: str) -> bool:
+    try:
+        from urllib.parse import urlparse
+        p = urlparse(u)
+        host = (p.netloc or "").lower()
+        if not host:
+            return False
+        if any(host.endswith(h) for h in DISALLOW_HOSTS):
+            return False
+        clean = u.lower().split("?")[0]
+        if clean.endswith(DISALLOW_SUFFIXES):
+            return False
+        # basic sanity
+        if not p.scheme.startswith("http"):
+            return False
+        return True
+    except Exception:
         return False
-    host = urlparse(u).netloc.lower()
-    if any(bad in host for bad in DISALLOW_HOSTS):
-        return False
-    return True
+
+def _read_manual_seeds(proj_dir: Path) -> List[str]:
+    seeds = []
+    f = proj_dir / "manual_urls.txt"
+    if f.exists():
+        for line in f.read_text(encoding="utf-8").splitlines():
+            u = line.strip()
+            if u and not u.startswith("#") and _allowed(u):
+                seeds.append(u)
+    return seeds
+
+def _save_urls(urls: List[Dict[str, str]], out_path: Path) -> None:
+    out_path.write_text(json.dumps(urls, ensure_ascii=False, indent=2), encoding="utf-8")
+
+def _add(result_list: List[Dict[str, str]], url: str, title: str) -> None:
+    if not url:
+        return
+    if not _allowed(url):
+        return
+    # de-dupe by normalized URL
+    norm = re.sub(r"#.*$", "", url.strip())
+    if any(re.sub(r"#.*$", "", r.get("url", "")) == norm for r in result_list):
+        return
+    result_list.append({"url": url, "title": title or ""})
 
 def _make_queries(name: str) -> List[str]:
     base = name.strip()
     quoted = f'"{base}"' if " " in base else base
-    terms = [
-        "digital identity", "self-sovereign identity", "decentralized identity",
-        "verifiable credentials", "DID method", "wallet", "eIDAS", "official site",
-    ]
+
     qs: List[str] = []
-    for t in terms:
-        qs.append(f"{base} {t}")
-        qs.append(f"{quoted} {t}")
-    qs += [f"{base} identity project", f"{base} site"]
-    # de-dupe keep order
+    # core
+    for t in [
+        "digital identity", "self-sovereign identity", "decentralized identity",
+        "verifiable credentials", "wallet", "official site", "eIDAS"
+    ]:
+        qs += [f"{base} {t}", f"{quoted} {t}"]
+
+    # site: hints
+    for host_hint in [base.lower(), f"{base.lower()}.com", f"{base.lower()}.io"]:
+        qs += [
+            f'site:{host_hint} {base} "digital identity"',
+            f'site:{host_hint} {base} "verifiable credentials"',
+        ]
+
+    # extras
+    extras = ["DID method", "W3C VC", "EUDI", "trust framework", "open source"]
+    for t in extras:
+        qs += [f"{base} {t}", f"{quoted} {t}"]
+
+    # de-dupe keeping order
     seen, out = set(), []
     for q in qs:
         k = q.lower()
@@ -45,92 +97,114 @@ def _make_queries(name: str) -> List[str]:
             seen.add(k); out.append(q)
     return out
 
-def _serpapi_search(query: str, want: int) -> List[Dict[str, str]]:
-    if not SERPAPI_API_KEY:
-        print("[search] serpapi: missing SERPAPI_API_KEY")
+# -----------------------
+# Providers
+# -----------------------
+def _search_serpapi(q: str, num: int = 10) -> List[Tuple[str, str]]:
+    if not SERPAPI_KEY:
         return []
-    url = "https://serpapi.com/search.json"
-    params = {"q": query, "engine": SERPAPI_ENGINE, "api_key": SERPAPI_API_KEY, "num": max(10, want*2)}
-    out: List[Dict[str, str]] = []
-    try:
-        r = requests.get(url, params=params, timeout=30)
-        print(f"[search] serpapi {SERPAPI_ENGINE}: {r.status_code}")
-        r.raise_for_status()
-        j = r.json()
-        for item in j.get("organic_results") or []:
-            u = item.get("link") or item.get("url") or ""
-            t = item.get("title") or ""
-            if _looks_ok(u):
-                out.append({"url": u, "title": t})
-            if len(out) >= want:
-                return out
-        # Fallback blocks
-        for block_name in ("news_results", "top_stories", "inline_videos", "answer_box"):
-            blk = j.get(block_name) or []
-            if isinstance(blk, dict):
-                blk = [blk]
-            for item in blk:
-                u = item.get("link") or item.get("url") or ""
-                t = item.get("title") or ""
-                if _looks_ok(u):
-                    out.append({"url": u, "title": t})
-                if len(out) >= want:
-                    return out
-        return out
-    except Exception as e:
-        print(f"[search] serpapi error: {e}")
-        return out
-
-def _dedupe_keep_order(items: List[Dict[str, str]]) -> List[Dict[str, str]]:
-    seen, out = set(), []
-    for it in items:
-        u = it.get("url", "")
-        if u not in seen:
-            seen.add(u); out.append(it)
+    params = {
+        "engine": "google",
+        "q": q,
+        "num": num,
+        "api_key": SERPAPI_KEY,
+        "hl": "en",
+        "safe": "active" if SAFESEARCH.lower() != "off" else "off",
+    }
+    r = requests.get("https://serpapi.com/search.json", params=params, timeout=30, headers={"User-Agent": UA})
+    print(f"[search] serpapi google: {r.status_code}")
+    if r.status_code != 200:
+        return []
+    data = r.json()
+    out: List[Tuple[str, str]] = []
+    for item in data.get("organic_results", []):
+        url = item.get("link") or item.get("url") or ""
+        title = item.get("title") or ""
+        if url:
+            out.append((url, title))
     return out
 
-# ---------- PUBLIC API ----------
-def search_project(name: str, out_dir: Path) -> List[Dict[str, str]]:
-    """
-    Return a list of {'url','title'} for the given project name, caching to urls.json.
-    """
-    print(f"[search] {name}: start (target={MAX_URLS}) [provider=serpapi-only]")
-    out_dir.mkdir(parents=True, exist_ok=True)
-    out_path = out_dir / "urls.json"
+def _search_ddg_html(q: str) -> List[Tuple[str, str]]:
+    # lightweight, but DDG rate-limits easily—kept as fallback only
+    urls = []
+    try:
+        r = requests.get("https://duckduckgo.com/html/", params={"q": q}, timeout=20, headers={"User-Agent": UA})
+        print(f"[search] ddg html: {r.status_code} {len(r.content)} bytes")
+        if r.status_code != 200:
+            return urls
+        # naive scraping: extract hrefs
+        for m in re.finditer(r'href="(https?://[^"]+)"', r.text):
+            url = m.group(1)
+            title = ""
+            urls.append((url, title))
+    except Exception as e:
+        print(f"[search] ddg html error: {e}")
+    return urls
 
-    results: List[Dict[str, str]] = []
+def _search_bing_html(q: str) -> List[Tuple[str, str]]:
+    urls = []
+    try:
+        r = requests.get("https://www.bing.com/search", params={"q": q}, timeout=20, headers={"User-Agent": UA})
+        print(f"[search] bing html: {r.status_code} {len(r.content)} bytes")
+        if r.status_code != 200:
+            return urls
+        for m in re.finditer(r'<h2><a href="(https?://[^"]+)"', r.text):
+            url = m.group(1)
+            title = ""
+            urls.append((url, title))
+    except Exception as e:
+        print(f"[search] bing html error: {e}")
+    return urls
 
-    # Manual seeds (optional)
-    manual = out_dir / "manual_urls.txt"
-    if manual.exists():
-        count = 0
-        for line in manual.read_text(encoding="utf-8").splitlines():
-            u = (line or "").strip()
-            if u and _looks_ok(u):
-                results.append({"url": u, "title": ""}); count += 1
-        print(f"[search] {name}: manual seeds -> {count}")
-    else:
-        print(f"[search] {name}: manual seeds -> 0")
+# -----------------------
+# Public entrypoint
+# -----------------------
+def search_project(name: str, proj_dir: Path) -> List[Dict[str, str]]:
+    target = MAX_URLS_PER_PROJECT
+    print(f"[search] {name}: start (target={target}) [provider={'serpapi-only' if SEARCH_PROVIDER=='serpapi' else SEARCH_PROVIDER}]")
+
+    urls_json = proj_dir / "urls.json"
+    urls: List[Dict[str, str]] = []
+    gathered: List[Dict[str, str]] = []
+
+    # Manual seeds first
+    seeds = _read_manual_seeds(proj_dir)
+    print(f"[search] {name}: manual seeds -> {len(seeds)}")
+    for u in seeds:
+        _add(gathered, u, "")
+
+    # If we already have enough from seeds, write & return
+    if len(gathered) >= target:
+        _save_urls(gathered[:target], urls_json)
+        print(f"[search] {name}: done, total urls={len(gathered[:target])}")
+        return gathered[:target]
 
     queries = _make_queries(name)
-    if not queries:
-        print(f"[search] {name}: no queries generated")
-        out_path.write_text(json.dumps(results, indent=2), encoding="utf-8")
-        return results
-
     for q in queries:
-        if len(results) >= MAX_URLS:
+        if len(gathered) >= target:
             break
-        time.sleep(BACKOFF)
+
         print(f"[search] {name}: query -> {q}")
 
-        need = MAX_URLS - len(results)
-        hits = _serpapi_search(q, want=need)
+        found: List[Tuple[str, str]] = []
+        if SEARCH_PROVIDER == "serpapi":
+            found = _search_serpapi(q, num=10)
+        else:
+            # try ddg + bing HTML (no keys)
+            found = _search_ddg_html(q)
+            if len(found) < 3:
+                found += _search_bing_html(q)
 
-        results.extend(hits)
-        results = _dedupe_keep_order(results)
-        print(f"[search] {name}: found so far -> {len(results)}")
+        print(f"[search] {name}: found so far -> {len(gathered)}")
 
-    print(f"[search] {name}: done, total urls={len(results)}")
-    out_path.write_text(json.dumps(results, indent=2), encoding="utf-8")
-    return results
+        for u, title in found:
+            if len(gathered) >= target:
+                break
+            _add(gathered, u, title)
+
+        # small pause to be polite
+        time.sleep(0.4)
+
+    _save_urls(gathered, urls_json)
+    print(f"[search] {name}: done, total urls={len(gathered)}")
+    return gathered
