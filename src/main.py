@@ -2,6 +2,7 @@
 import argparse, json, os
 from pathlib import Path
 import pandas as pd
+from export_excel import write_fresh_workbook_with_three_sheets
 
 # our modules
 from schema import load_headers, _name_header
@@ -150,9 +151,7 @@ def main():
 
     # ---- Write outputs ----
     if recs:
-        export_ai_sheet(headers, recs, OUTPUT_XLSX)                   # AI_Data sheet
-        build_comparison_sheet(INPUT_XLSX, headers, recs, OUTPUT_XLSX)  # Comparison sheet
-        build_review_sheet(headers, recs, vals, OUTPUT_XLSX)            # Review sheet
+        write_fresh_workbook_with_three_sheets(INPUT_XLSX, headers, recs, OUTPUT_XLSX)
         print(f"Done → {OUTPUT_XLSX}")
     else:
         print("[warn] No records generated; nothing to write.")
