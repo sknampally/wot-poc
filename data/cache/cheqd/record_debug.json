@@ -1,24 +1,88 @@
 {
   "Product Name": "cheqd",
-  "ID": "",
-  "Website": "",
+  "ID": [
+    {
+      "field": "Product Name",
+      "value": "cheqd",
+      "source_url": "https://cheqd.io/blog/the-digital-identity-industry-layers/",
+      "source_type": "webpage",
+      "confidence": "high"
+    },
+    {
+      "field": "Website",
+      "value": "Failed to disclose",
+      "source_url": "https://cheqd.io/blog/the-digital-identity-industry-layers/",
+      "source_type": "webpage",
+      "confidence": "low"
+    },
+    {
+      "field": "Mission Statement",
+      "value": "Failed to disclose",
+      "source_url": "https://cheqd.io/blog/the-digital-identity-industry-layers/",
+      "source_type": "webpage",
+      "confidence": "low"
+    },
+    {
+      "field": "Project Announcement Date",
+      "value": "Failed to disclose",
+      "source_url": "https://cheqd.io/blog/the-digital-identity-industry-layers/",
+      "source_type": "webpage",
+      "confidence": "low"
+    },
+    {
+      "field": "Project Launch Date",
+      "value": "Failed to disclose",
+      "source_url": "https://cheqd.io/blog/the-digital-identity-industry-layers/",
+      "source_type": "webpage",
+      "confidence": "low"
+    },
+    {
+      "field": "Status",
+      "value": "Failed to disclose",
+      "source_url": "https://cheqd.io/blog/the-digital-identity-industry-layers/",
+      "source_type": "webpage",
+      "confidence": "low"
+    },
+    {
+      "field": "Tech Stack Descriptions",
+      "value": "Verifiable Credentials (VCs) and Decentralised Identifiers (DIDs) are highly versatile technologies which can be applied to various use cases.",
+      "source_url": "https://cheqd.io/blog/verifiable-ai-by-cheqd/",
+      "source_type": "webpage",
+      "confidence": "medium"
+    },
+    {
+      "field": "Has Exportable Credentials",
+      "value": "True",
+      "source_url": "https://cheqd.io/blog/verifiable-ai-by-cheqd/",
+      "source_type": "webpage",
+      "confidence": "medium"
+    },
+    {
+      "field": "Targets Holders",
+      "value": "human beings to ethically sourced bananas to automated AI Agents",
+      "source_url": "https://cheqd.io/blog/verifiable-ai-by-cheqd/",
+      "source_type": "webpage",
+      "confidence": "medium"
+    }
+  ],
+  "Website": "Failed to disclose",
   "Logo": "",
-  "Mission Statement": "",
-  "Live Source Mission Statement": "",
+  "Mission Statement": "Failed to disclose",
+  "Live Source Mission Statement": "https://cheqd.io/blog/the-digital-identity-industry-layers/",
   "Archived Source Mission Statement": "",
-  "Project Announcement Date": "",
-  "Live Source Project Announcement Date": "",
+  "Project Announcement Date": null,
+  "Live Source Project Announcement Date": "https://cheqd.io/blog/the-digital-identity-industry-layers/",
   "Archived Source Project Announcement Date": "",
-  "Project Launch Date": "",
-  "Live Source Project Launch Date": "",
+  "Project Launch Date": null,
+  "Live Source Project Launch Date": "https://cheqd.io/blog/the-digital-identity-industry-layers/",
   "Archived Source Project Launch Date": "",
-  "Status": "",
-  "Live Source Status": "",
+  "Status": "Failed To Disclose",
+  "Live Source Status": "https://cheqd.io/blog/the-digital-identity-industry-layers/",
   "Archived Source Status": "",
   "Politically Involved?": "",
   "Live Source Politically Involved": "",
   "Archived Source Politically Involved": "",
-  "Tech Stack Descriptions": "",
+  "Tech Stack Descriptions": "Verifiable Credentials (VCs) and Decentralised Identifiers (DIDs) are highly versatile technologies which can be applied to various use cases.",
   "Live Source Tech Stack Description": "",
   "Archived Source Tech Stack Description": "",
   "Public Code Repository": "",
@@ -29,19 +93,19 @@
   "Live Source Uses / Endorses ZKP": "",
   "Archived Source Uses / Endorses ZKP": "",
   "DLT Data Availability": "",
-  "Has Exportable Credentials": "",
-  "Live Source Has Exportable Credentials": "",
+  "Has Exportable Credentials": "True",
+  "Live Source Has Exportable Credentials": "https://cheqd.io/blog/verifiable-ai-by-cheqd/",
   "Archived Source Has Exportable Credentials": "",
   "Credential And Key Storage": "",
   "Live Source Credential And Key Storage": "",
   "Archived Source Credential And Key Storage": "",
-  "Targets Holders": "",
-  "Live Source Targets Holders": "",
+  "Targets Holders": "Failed to disclose",
+  "Live Source Targets Holders": "https://cheqd.io/blog/verifiable-ai-by-cheqd/",
   "Archived Source Targets Holders": "",
-  "Targets Issuers": "",
+  "Targets Issuers": "Failed to disclose",
   "Live Source Targets Issuers": "",
   "Archived Source Targets Issuers": "",
-  "Targets Verifiers": "",
+  "Targets Verifiers": "Failed to disclose",
   "Live Source Targets Verifiers": "",
   "Archived Source Targets Verifiers": "",
   "Government relation": "",
@@ -73,10 +137,9 @@
   "Managing Entity": "",
   "Managing Entity Archived Source": "",
   "Managing Entity Archived Source.1": "",
-  "_evidence": [],
   "_inclusion": {
-    "tech_ok": false,
-    "gov_ok": false,
+    "tech_ok": true,
+    "gov_ok": true,
     "partner_ok": false,
     "eligible": false
   }
