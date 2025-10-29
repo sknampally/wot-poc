@@ -1,22 +1,5 @@
-# Python
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-*.egg-info/
-.eggs/
-
-# venv
-.venv/
-env/
-venv/
-
-# OS
-.DS_Store
-
-# Project secrets & outputs
+# Environment variables
 .env
-*.env
-data/input.xlsx
-data/output.xlsx
-data/cache/
+
+# Data directory
+data/
