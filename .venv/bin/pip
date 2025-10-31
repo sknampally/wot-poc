@@ -1,4 +1,4 @@
-#!/Users/satish_byndr/Documents/workspace-py/wot-poc/.venv/bin/python3.12
+#!/Users/satish_byndr/Documents/workspace-py/wot-poc/.venv/bin/python
 # -*- coding: utf-8 -*-
 import re
 import sys

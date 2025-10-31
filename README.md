@@ -220,20 +220,29 @@ wot-poc/
   ├─ data/
   │   ├─ input.xlsx
   │   ├─ output.xlsx
-  │   └─ cache/<Project>/
-  │       ├─ manual_urls.txt
-  │       ├─ urls.json
-  │       ├─ texts/*.json
-  │       └─ record_debug.json
+  │   └─ cache/
+  │       └─ <Project>/
+  │           ├─ manual_urls.txt       # optional manual seeds
+  │           ├─ urls.json             # discovered URLs
+  │           └─ texts/                # per-URL JSON (url, status, ctype, text)
+  ├─ logs/
+  │   └─ wot.log
   ├─ src/
   │   ├─ main.py
-  │   ├─ extractor.py
-  │   ├─ scraper.py
-  │   ├─ searcher.py
-  │   ├─ schema.py
-  │   ├─ validator.py
-  │   ├─ export_excel.py
-  │   └─ review_report.py
+  │   └─ app/
+  │       ├─ __init__.py
+  │       ├─ utils/
+  │       │   ├─ __init__.py
+  │       │   └─ logger.py
+  │       ├─ core/
+  │       │   ├─ __init__.py
+  │       │   ├─ schema.py
+  │       │   └─ export_excel.py
+  │       └─ workers/
+  │           ├─ __init__.py
+  │           ├─ searcher.py
+  │           ├─ scraper.py
+  │           └─ extractor.py
   ├─ .env
   ├─ requirements.txt
   └─ README.md
