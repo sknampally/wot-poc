@@ -1,3 +1,15 @@
+"""
+Schema utilities for handling Excel headers and data normalization.
+
+This module provides:
+- Header loading from Excel files
+- Field name matching (fuzzy matching for LLM output)
+- Data normalization (status, ternary, year fields)
+- Conversion of LLM output dicts to Excel-compatible rows
+
+The normalization functions ensure consistency when comparing
+AI-extracted data with manual data.
+"""
 # src/app/core/schema.py
 from __future__ import annotations
 
@@ -22,7 +34,17 @@ __all__ = [
 
 def load_headers(xlsx_path: Path) -> List[str]:
     """
-    Read the first sheet of the client input workbook and return the header row as a list of strings.
+    Load column headers from the first sheet of an Excel file.
+    
+    Args:
+        xlsx_path: Path to the Excel file
+    
+    Returns:
+        List[str]: List of column header names (as strings)
+    
+    Note:
+        Uses openpyxl engine to read Excel files. Strips whitespace
+        from header names.
     """
     df = pd.read_excel(xlsx_path, engine="openpyxl")
     headers = [str(c).strip() for c in df.columns.tolist()]
@@ -31,8 +53,16 @@ def load_headers(xlsx_path: Path) -> List[str]:
 
 def name_header(headers: List[str]) -> str:
     """
-    Choose the best-matching 'name' column from the provided headers.
-    Fallback to the very first header if nothing matches.
+    Find the best-matching 'name' column from a list of headers.
+    
+    Searches for common name column variations:
+    - Product Name, Project Name, Name, Initiative, Program, Title
+    
+    Args:
+        headers: List of column header names
+    
+    Returns:
+        str: The matching header name, or first header if no match found
     """
     candidates = [
         "Product Name", "Project Name", "Name", "Initiative", "Program", "Title",
@@ -48,17 +78,36 @@ def name_header(headers: List[str]) -> str:
 # Normalizers used elsewhere
 # -----------------------------
 
+# Valid status enum values (case-insensitive matching)
 _STATUS_ENUMS = {"announced", "pilot", "launched", "discontinued"}
 
 def normalize_status(v: Any) -> str:
+    """
+    Normalize status values to standard enum: Announced, Pilot, Launched, Discontinued.
+    
+    Handles common variations:
+    - "live", "prod", "production" → "Launched"
+    - "beta", "pilot", "trial" → "Pilot"
+    - "announce", "press release", "coming soon" → "Announced"
+    - "end", "retire", "sunset", "closed" → "Discontinued"
+    
+    Args:
+        v: Status value (any type, will be converted to string)
+    
+    Returns:
+        str: Normalized status (capitalized) or original value if no match
+    """
     s = str(v or "").strip()
     if not s:
         return ""
     low = s.lower()
+    
+    # Check for exact enum matches first
     for enum in _STATUS_ENUMS:
         if enum in low:
             return enum.capitalize()
-    # common synonyms
+    
+    # Common synonyms/patterns
     if "live" in low or "prod" in low:
         return "Launched"
     if "beta" in low or "pilot" in low or "trial" in low:
@@ -67,17 +116,32 @@ def normalize_status(v: Any) -> str:
         return "Announced"
     if "end" in low or "retire" in low or "sunset" in low or "closed" in low:
         return "Discontinued"
-    return s  # unknown label, keep as-is
+    
+    # Unknown label, keep as-is
+    return s
 
 
 def normalize_fd(v: Any) -> str:
     """
-    Ternary normalization: True / False / Failed to disclose
+    Normalize ternary (three-value) fields: True / False / Failed to disclose.
+    
+    Handles common variations:
+    - "true", "yes", "y", "1" → "True"
+    - "false", "no", "n", "0" → "False"
+    - "unknown", "n/a", "not disclosed", "undisclosed" → "Failed to disclose"
+    - Empty values → "Failed to disclose"
+    
+    Args:
+        v: Value to normalize (any type)
+    
+    Returns:
+        str: "True", "False", or "Failed to disclose"
     """
     s = str(v or "").strip()
     if not s:
         return "Failed to disclose"
     low = s.lower()
+    
     if low in {"true", "yes", "y", "1"}:
         return "True"
     if low in {"false", "no", "n", "0"}:
@@ -87,11 +151,26 @@ def normalize_fd(v: Any) -> str:
     return s
 
 
+# Regex pattern to match 4-digit years (1900-2099)
 _year_re = re.compile(r"\b(19|20)\d{2}\b")
 
 def normalize_year(v: Any) -> str:
     """
-    Extract/format a 4-digit year if present, otherwise return "".
+    Extract a 4-digit year (YYYY format) from a value.
+    
+    Looks for years in the range 1900-2099. Returns empty string
+    if no year found.
+    
+    Args:
+        v: Value to extract year from (any type)
+    
+    Returns:
+        str: 4-digit year (YYYY) or empty string if not found
+    
+    Example:
+        normalize_year("Launched in 2021") → "2021"
+        normalize_year("2020-2023") → "2020" (first match)
+        normalize_year("No date") → ""
     """
     s = str(v or "").strip()
     if not s:
@@ -106,11 +185,26 @@ def normalize_year(v: Any) -> str:
 
 def _canonicalize_key(k: str) -> str:
     """
-    Lower-case + collapse spaces/punctuation to make fuzzy matching between model keys and sheet headers.
+    Canonicalize a key for fuzzy matching.
+    
+    Converts to lowercase and collapses spaces/punctuation.
+    This allows matching "Product Name" with "product_name" or "ProductName".
+    
+    Args:
+        k: Key string to canonicalize
+    
+    Returns:
+        str: Canonicalized key (lowercase, spaces collapsed)
+    
+    Example:
+        _canonicalize_key("Product Name") → "product name"
+        _canonicalize_key("product_name") → "product name"
+        _canonicalize_key("ProductName!") → "productname"
     """
     k = (k or "").strip().lower()
-    # replace non-alphanum with single space, then collapse
+    # Replace non-alphanumeric with single space
     k = re.sub(r"[^a-z0-9]+", " ", k)
+    # Collapse multiple spaces into one
     k = re.sub(r"\s+", " ", k).strip()
     return k
 
@@ -121,15 +215,32 @@ def coerce_to_headers(
     project_name: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
-    Map an arbitrary dict `obj` (from the LLM) into a row keyed by the exact `headers`.
-    - Case/space/punct insensitive header matching
-    - Preserves `_evidence` list if provided
-    - Ensures all headers present
-    - Optionally forces name column to `project_name`
+    Map an LLM output dict to a row matching exact Excel headers.
+    
+    This function handles:
+    1. Fuzzy matching: "product_name" matches "Product Name"
+    2. Case-insensitive matching
+    3. Evidence preservation: Keeps _evidence array if present
+    4. Complete row: Ensures all headers exist (empty string if missing)
+    5. Name override: Optionally forces name column to project_name
+    
+    Args:
+        obj: Dictionary from LLM (may have different key names/format)
+        headers: List of exact Excel column headers
+        project_name: Optional project name to force into name column
+    
+    Returns:
+        Dict[str, Any]: Row dict keyed by exact headers, with all headers present
+    
+    Example:
+        obj = {"product_name": "Cheqd", "website_url": "https://..."}
+        headers = ["Product Name", "Website"]
+        Returns: {"Product Name": "Cheqd", "Website": "https://..."}
     """
     row: Dict[str, Any] = {}
 
     # Build a canonical lookup for the sheet headers
+    # Maps "product name" → "Product Name" (exact header)
     header_canon: Dict[str, str] = {}
     for h in headers:
         header_canon[_canonicalize_key(h)] = h
@@ -137,28 +248,32 @@ def coerce_to_headers(
     # First pass: attempt direct or canonical matches
     for k, v in (obj or {}).items():
         if k == "_evidence":
-            # handled later
+            # Evidence is handled separately below
             continue
+        
+        # Direct match (exact header name)
         if k in headers:
             row[k] = v
             continue
+        
+        # Canonical match (fuzzy matching)
         ck = _canonicalize_key(k)
         if ck in header_canon:
             row[header_canon[ck]] = v
 
-    # Ensure all headers exist
+    # Ensure all headers exist (fill missing ones with empty string)
     for h in headers:
         if h not in row:
             row[h] = ""
 
-    # Evidence passthrough
+    # Evidence passthrough (preserve source tracking if LLM provided it)
     ev = obj.get("_evidence", [])
     if isinstance(ev, list):
         row["_evidence"] = ev
     else:
         row["_evidence"] = []
 
-    # Force name column if requested
+    # Force name column if requested (ensures consistency)
     if project_name:
         nh = name_header(headers)
         row[nh] = project_name

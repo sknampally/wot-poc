@@ -1,6 +1,47 @@
 # Environment variables
 .env
 
-# Data directory
-data/
+# Data directory - exclude generated/cache files but keep templates
+data/cache/
+data/output.xlsx
+data/archives.csv
+
+# Keep these data files (should be in GitHub):
+# - data/input.xlsx (template/example)
+# - data/codebook.json (generated but needed)
+# - data/wot_data_definations.xlsx (field definitions)
+
 logs/
+.venv/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Test and helper scripts (not part of POC)
+check_accuracy.py
+import_codebook_excel.py
+analyze_matches.py
+quick_analysis.py
+check_fields.py
+
+# Internal documentation/notes
+IMPROVEMENTS_SUMMARY.md
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Excel temp files
+~$*.xlsx
+~$*.xls

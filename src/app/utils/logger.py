@@ -1,4 +1,17 @@
-# src/app/utils/logger.py
+"""
+Logging configuration for the Web of Trust POC.
+
+This module sets up logging to:
+- File: logs/wot.log (captures everything, DEBUG and above)
+- Console: Configurable via LOG_LEVEL_CONSOLE env var (default: WARNING)
+
+Usage:
+    from app.utils.logger import setup_logging, get_logger
+    
+    setup_logging()  # Initialize once at startup
+    log = get_logger(__name__)  # Get logger for your module
+    log.info("Something happened")
+"""
 import logging
 import os
 from pathlib import Path
@@ -13,23 +26,32 @@ LOGFILE = LOG_DIR / "wot.log"
 
 def setup_logging():
     """
-    Initializes logging:
-      - File logs everything (DEBUG and above)
-      - Console level configurable via env var LOG_LEVEL_CONSOLE
-        (default = WARNING)
+    Initialize logging configuration.
+    
+    Sets up two handlers:
+    - File handler: Writes all logs (DEBUG+) to logs/wot.log
+    - Console handler: Writes logs at configurable level (default: WARNING)
+    
+    The console log level can be controlled via the LOG_LEVEL_CONSOLE 
+    environment variable. Valid values: DEBUG, INFO, WARNING, ERROR, CRITICAL.
+    
+    Returns:
+        logging.Logger: The root logger instance
     """
     # Read console log level from environment variable
+    # Default to WARNING to keep console output clean
     level_str = os.getenv("LOG_LEVEL_CONSOLE", "WARNING").upper()
     console_level = getattr(logging, level_str, logging.WARNING)
 
     logger = logging.getLogger()
-    logger.setLevel(logging.DEBUG)  # Always capture everything
+    logger.setLevel(logging.DEBUG)  # Always capture everything to file
 
     # Clear previous handlers to prevent duplicates on re-runs
     if logger.hasHandlers():
         logger.handlers.clear()
 
     # --- File Handler (everything) ---
+    # Write all log levels to file for debugging and audit trail
     fh = logging.FileHandler(LOGFILE, mode="a", encoding="utf-8")
     fh.setLevel(logging.DEBUG)
     fh_formatter = logging.Formatter(
@@ -40,6 +62,7 @@ def setup_logging():
     logger.addHandler(fh)
 
     # --- Console Handler (configurable) ---
+    # Only show important messages on console by default
     ch = logging.StreamHandler()
     ch.setLevel(console_level)
     ch_formatter = logging.Formatter("%(levelname)s: %(message)s")
@@ -54,8 +77,17 @@ def setup_logging():
 def get_logger(name: str) -> logging.Logger:
     """
     Get a named logger instance for a specific module.
+    
+    Args:
+        name: Logger name (typically __name__ from the calling module)
+    
+    Returns:
+        logging.Logger: Configured logger instance
+    
     Example:
         log = get_logger(__name__)
         log.info("Something happened")
+        log.warning("Something concerning")
+        log.error("Something went wrong")
     """
     return logging.getLogger(name)

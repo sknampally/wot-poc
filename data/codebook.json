@@ -1,0 +1,200 @@
+{
+  "status_enums": [
+    "Announced",
+    "Pilot",
+    "Launched",
+    "Discontinued"
+  ],
+  "ternary_enums": [
+    "True",
+    "False",
+    "Failed to disclose"
+  ],
+  "year_fields": [
+    "Project Announcement Date",
+    "Project Launch Date",
+    "Announcement Repositories / News"
+  ],
+  "normalize": {
+    "status": {},
+    "ternary": {}
+  },
+  "field_synonyms": {},
+  "field_definitions": {
+    "Product Name": {
+      "description": "Official English name of the project.",
+      "type": "text",
+      "extraction_guidance": "Official English name of the project."
+    },
+    "ID": {
+      "description": "",
+      "type": "text",
+      "extraction_guidance": ""
+    },
+    "Website": {
+      "description": "Official website of the project or the managing\nentity’s or developing company’s page where they\nhave information about the project.",
+      "type": "url",
+      "extraction_guidance": "Official website of the project or the managing\nentity’s or developing company’s page where they\nhave information about the project."
+    },
+    "Logo": {
+      "description": "Official logo of the project or the managing entity’s if\nthere’s none available for the project itself.",
+      "type": "text",
+      "extraction_guidance": "Official logo of the project or the managing entity’s if\nthere’s none available for the project itself."
+    },
+    "Mission Statement": {
+      "description": "Self-description of the project’s goal/mission from an\nofficial source.",
+      "type": "text",
+      "extraction_guidance": "Self-description of the project’s goal/mission from an\nofficial source."
+    },
+    "Project Announcement Date": {
+      "description": "The date the project was first publicly announced.\nIf no official announcement was made, the date of\nthe company's founding year will be used.",
+      "type": "year",
+      "extraction_guidance": "The date the project was first publicly announced.\nIf no official announcement was made, the date of\nthe company's founding year will be used."
+    },
+    "Project Launch Date": {
+      "description": "If applicable, the date the first deliverable/product\nwent live.\nThe date can also refer to when the project first\nlaunched its beta version or a pilot version.",
+      "type": "year",
+      "extraction_guidance": "If applicable, the date the first deliverable/product\nwent live.\nThe date can also refer to when the project first\nlaunched its beta version or a pilot version."
+    },
+    "Status": {
+      "description": "",
+      "type": "text",
+      "extraction_guidance": ""
+    },
+    "Politically Involved?": {
+      "description": "Any government or state-affiliated entity that has an\naffiliation at a national, regional, municipal, or\ninternational level with the consortium through\nendorsement.\nEndorsement is defined as statements of support,\nadoption, funding, partnerships, formal\nrecommendations, branding, certifications or\nawards, or resource allocation.\nThese entities can be government agencies or\ninstitutions, state-owned enterprises,\nintergovernmental organizations, regional alliances,\netc.",
+      "type": "boolean",
+      "extraction_guidance": "Any government or state-affiliated entity that has an\naffiliation at a national, regional, municipal, or\ninternational level with the consortium through\nendorsement.\nEndorsement is defined as statements of support,\nadoption, funding, partnerships, formal\nrecommendations, branding, certifications or\nawards, or resource allocation.\nThese entities can be government agencies or\ninstitutions, state-owned enterprises,\nintergovernmental organizations, regional alliances,\netc."
+    },
+    "Tech Stack Descriptions": {
+      "description": "Self-description of the project regarding tech stack.",
+      "type": "text",
+      "extraction_guidance": "Self-description of the project regarding tech stack."
+    },
+    "Public Code Repository": {
+      "description": "The URL of the project's public code repository,\nsuch as GitHub or GitLab.",
+      "type": "url",
+      "extraction_guidance": "The URL of the project's public code repository,\nsuch as GitHub or GitLab."
+    },
+    "Does it use SSI Technology?": {
+      "description": "Defines if the project actively is using SSI\ntechnology.\nIt will be taken into consideration if there’s an\nexplicit mention of branding itself as an SSI project\nor using VC and/or DID, or other technical\ncomponents of SSI.",
+      "type": "boolean",
+      "extraction_guidance": "Defines if the project actively is using SSI\ntechnology.\nIt will be taken into consideration if there’s an\nexplicit mention of branding itself as an SSI project\nor using VC and/or DID, or other technical\ncomponents of SSI."
+    },
+    "Uses/endorses ZKP": {
+      "description": "Defines whether the project uses ZKP or if it\nendorses it.\nIn case there is no explicit information about the\nproject actively using ZKP or having an opinion\nabout it, “Failed to disclose” will be the response.",
+      "type": "text",
+      "extraction_guidance": "Defines whether the project uses ZKP or if it\nendorses it.\nIn case there is no explicit information about the\nproject actively using ZKP or having an opinion\nabout it, “Failed to disclose” will be the response."
+    },
+    "DLT Data Availability": {
+      "description": "Indicates the amount of data available for the\nproject regarding DLT.\n1. Complete DLT Data: the project provides\npublic information about the technology or\ninstance used.\n2. Specifies DLT Technology but no DLT\nInstance: the project publicly states the use\nof Hyperledger, Tendermint, or R3 Corda,\nbut does not specify which instance.\n3. Uses DLT, no specifications: the project\npublicly states the use of DLT for the project,\nbut does not specify any technology or\ninstance.\n4. No DLT data at all: the project does not\npublicly state whether they use DLT.",
+      "type": "text",
+      "extraction_guidance": "Indicates the amount of data available for the\nproject regarding DLT.\n1. Complete DLT Data: the project provides\npublic information about the technology or\ninstance used.\n2. Specifies DLT Technology but no DLT\nInstance: the project publicly states the use\nof Hyperledger, Tendermint, or R3 Corda,\nbut does not specify which instance.\n3. Uses DLT, no specifications: the project\npublicly states the use of DLT for the project,\nbut does not specify any technology or\ninstance.\n4. No DLT data at all: the project does not\npublicly state whether they use DLT."
+    },
+    "Has Exportable Credentials": {
+      "description": "Whether the project explicitly mentions the holder\ncan export their credentials.\nIf the project mentions it can only import and doesn’t\nspecify they can be exported “No” will be used. If\nno information about import/export is identified\n“Failed to disclose” will be used",
+      "type": "text",
+      "extraction_guidance": "Whether the project explicitly mentions the holder\ncan export their credentials.\nIf the project mentions it can only import and doesn’t\nspecify they can be exported “No” will be used. If\nno information about import/export is identified\n“Failed to disclose” will be used"
+    },
+    "Credential And Key Storage": {
+      "description": "The project explicitly mentions the holder has\nexclusive custody of the credentials and keys.\n“Failed to disclose” will be used whenever there is\nno information about the storage of credentials and\nkeys at all.",
+      "type": "text",
+      "extraction_guidance": "The project explicitly mentions the holder has\nexclusive custody of the credentials and keys.\n“Failed to disclose” will be used whenever there is\nno information about the storage of credentials and\nkeys at all."
+    },
+    "Targets Holders": {
+      "description": "Refers to the project having features for the use by\nholders, such as wallets.\n\n\"Failed to disclose\" will be selected if there is no\nclear indication whether the project is targeted\ntoward holders or not.",
+      "type": "text",
+      "extraction_guidance": "Refers to the project having features for the use by\nholders, such as wallets.\n\n\"Failed to disclose\" will be selected if there is no\nclear indication whether the project is targeted\ntoward holders or not."
+    },
+    "Targets Issuers": {
+      "description": "Refers to the project having features for the use by\nissuers, such as credential issuance solutions.\n\"Failed to disclose\" will be selected if there is no\nclear indication whether the project is targeted\ntoward issuers or not.",
+      "type": "text",
+      "extraction_guidance": "Refers to the project having features for the use by\nissuers, such as credential issuance solutions.\n\"Failed to disclose\" will be selected if there is no\nclear indication whether the project is targeted\ntoward issuers or not."
+    },
+    "Targets Verifiers": {
+      "description": "Refers to the project having features for the use by\nVerifiers, such as QR readers.\n\"Failed to disclose\" will be selected if there is no\nclear indication whether the project is targeted\ntoward verifiers or not.",
+      "type": "text",
+      "extraction_guidance": "Refers to the project having features for the use by\nVerifiers, such as QR readers.\n\"Failed to disclose\" will be selected if there is no\nclear indication whether the project is targeted\ntoward verifiers or not."
+    },
+    "Government relation": {
+      "description": "Name of the government or state-affiliated entity or\nentities that have an affiliation at a national,\nregional, municipal, or international level with the\nproject through endorsement, partnership, or are\nactively using the project's live services or\ntechnology.",
+      "type": "text",
+      "extraction_guidance": "Name of the government or state-affiliated entity or\nentities that have an affiliation at a national,\nregional, municipal, or international level with the\nproject through endorsement, partnership, or are\nactively using the project's live services or\ntechnology."
+    },
+    "Public Sector Funding": {
+      "description": "The project’s government or state-affiliated\nsponsors.",
+      "type": "text",
+      "extraction_guidance": "The project’s government or state-affiliated\nsponsors."
+    },
+    "Affiliated Entity / Partner": {
+      "description": "Name of the private entity or entities that have an\naffiliation with the project through a partnership,\nmembership, or vendor agreement, or are actively\nusing the project's live services or technology.\nNo government partners are included in this\nvariable.",
+      "type": "text",
+      "extraction_guidance": "Name of the private entity or entities that have an\naffiliation with the project through a partnership,\nmembership, or vendor agreement, or are actively\nusing the project's live services or technology.\nNo government partners are included in this\nvariable."
+    },
+    "Private Sector Funding": {
+      "description": "The project’s corporate sponsors, such as\ncompanies, foundations, consortia, vendors,\nnongovernmental organizations, etc.",
+      "type": "text",
+      "extraction_guidance": "The project’s corporate sponsors, such as\ncompanies, foundations, consortia, vendors,\nnongovernmental organizations, etc."
+    },
+    "Standard/Protocol Used": {
+      "description": "Whether the consortia enables technology that\nfollows any of the standards/protocols managed by\nthe consortia in the map or endorses their\nspecifications.\nMultiple can be listed.",
+      "type": "text",
+      "extraction_guidance": "Whether the consortia enables technology that\nfollows any of the standards/protocols managed by\nthe consortia in the map or endorses their\nspecifications.\nMultiple can be listed."
+    },
+    "Blockchains / Verifiable Data Registries": {
+      "description": "Refers to the DLT the project uses. More than one\nwill be listed when applicable",
+      "type": "text",
+      "extraction_guidance": "Refers to the DLT the project uses. More than one\nwill be listed when applicable"
+    },
+    "App Store Link": {
+      "description": "Links to the app store, browser application, or\ndesktop applications of the project's products.",
+      "type": "url",
+      "extraction_guidance": "Links to the app store, browser application, or\ndesktop applications of the project's products."
+    },
+    "Regulations Followed": {
+      "description": "Any national or regional regulation the product\nabides with related to SSI/DID/VC or privacy.",
+      "type": "text",
+      "extraction_guidance": "Any national or regional regulation the product\nabides with related to SSI/DID/VC or privacy."
+    },
+    "Person of Interest": {
+      "description": "Notable members, employees, or advisors from the\nproject or managing entity.",
+      "type": "text",
+      "extraction_guidance": "Notable members, employees, or advisors from the\nproject or managing entity."
+    },
+    "Person of Interest Work Title": {
+      "description": "",
+      "type": "text",
+      "extraction_guidance": ""
+    },
+    "Managing Entity": {
+      "description": "Name of the legal entity or entities in charge of\noperating the project.",
+      "type": "text",
+      "extraction_guidance": "Name of the legal entity or entities in charge of\noperating the project."
+    },
+    "Announcement Repositories / News": {
+      "description": "Active social media, blog page, news feed, or any\nother page that provides information about the\nproject’s updates.",
+      "type": "url",
+      "extraction_guidance": "Active social media, blog page, news feed, or any\nother page that provides information about the\nproject’s updates."
+    },
+    "Derived Products": {
+      "description": "SSI products that:\nderive from the main project listed on the Web of\nTrust Map.",
+      "type": "text",
+      "extraction_guidance": "SSI products that:\nderive from the main project listed on the Web of\nTrust Map."
+    },
+    "Utility integration with SSI platforms": {
+      "description": "Platforms, wallets, or services from other parts of\nthe SSI ecosystem that the project is interoperable\nwith. Does not refer to full interoperability but can be\nsmaller aspects, such as wallets announcing\nportability of each other's credential exports.",
+      "type": "text",
+      "extraction_guidance": "Platforms, wallets, or services from other parts of\nthe SSI ecosystem that the project is interoperable\nwith. Does not refer to full interoperability but can be\nsmaller aspects, such as wallets announcing\nportability of each other's credential exports."
+    },
+    "Utility Integration with Non-SSI Platforms": {
+      "description": "Platforms, wallets, or services in which the project is\nintegrated in, which aren’t SSI.\nNot all platforms, wallets, or services the project is\nintegrated with were included in the research, as\nthis was not a primary focus. Instead, a few\nrepresentative examples were added.\nExample: Alice's SSI wallets single sign on solution\nis used by Bobs Non-SSI LLC.",
+      "type": "text",
+      "extraction_guidance": "Platforms, wallets, or services in which the project is\nintegrated in, which aren’t SSI.\nNot all platforms, wallets, or services the project is\nintegrated with were included in the research, as\nthis was not a primary focus. Instead, a few\nrepresentative examples were added.\nExample: Alice's SSI wallets single sign on solution\nis used by Bobs Non-SSI LLC."
+    },
+    "Geographical Focus": {
+      "description": "Refers to the country or countries the project is\nfocusing its implementation in.\nA project will be considered international if it has\nthree or more countries as a geographical focus",
+      "type": "text",
+      "extraction_guidance": "Refers to the country or countries the project is\nfocusing its implementation in.\nA project will be considered international if it has\nthree or more countries as a geographical focus"
+    }
+  }
+}

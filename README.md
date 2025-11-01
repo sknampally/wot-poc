@@ -1,8 +1,7 @@
 # 🧠 Web of Trust POC  
-### AI-Assisted Data Collection using Local Llama 3.1 (via Ollama)
+### AI-Assisted Data Collection for Digital Identity Projects
 
-This Proof of Concept automatically collects and structures data for **Digital Identity (SSI/DI)** projects in the same Excel format used by the client.  
-It reads the existing `input.xlsx`, identifies rows with missing fields, scrapes public information, asks a **local AI model (Llama 3.1)** to fill the gaps, and writes results to `output.xlsx`.
+This Proof of Concept automatically collects and structures data for **Digital Identity (SSI/DI)** projects using web search (SerpAPI), web scraping, and LLM-based extraction. It reads project names from `input.xlsx`, searches the internet for relevant sources, scrapes content, and uses an LLM to extract structured data into `output.xlsx` with source tracking and comparison against manual data.
 
 ## 🚀 1  Prerequisites — Install Once
 
@@ -19,7 +18,7 @@ python3 --version
 ```
 
 ### B  Install Git (optional)
-If you don’t have it installed:
+If you don't have it installed:
 
 | Platform | Command / Link |
 |-----------|----------------|
@@ -27,54 +26,23 @@ If you don’t have it installed:
 | **Windows** | [git-scm.com/downloads](https://git-scm.com/downloads) |
 | **Linux** | `sudo apt install git` |
 
-### C  Install Ollama + Llama 3.1 (local model)
-Ollama lets you run large language models locally — **no API key or internet dependency**.
+### C  API Keys Required
+This POC uses **SerpAPI** for Google search and **OpenAI** (or Ollama) for LLM extraction.
 
-#### macOS
-```bash
-brew install ollama
-brew services start ollama        # run as background service
-ollama pull llama3.1              # downloads ~4 GB model
-```
-
-#### Windows
-1. Download & install → [ollama.com/download](https://ollama.com/download)  
-2. Start Ollama from the Start Menu (it runs as a service)  
-3. In PowerShell:
-```powershell
-ollama pull llama3.1
-```
-
-#### Linux
-```bash
-curl -fsSL https://ollama.com/install.sh | sh
-ollama pull llama3.1
-```
-
-Verify Ollama:
-```bash
-ollama run llama3.1 "Hello"
-```
-If it replies, you’re ready.
+1. **SerpAPI**: Get free API key from [serpapi.com](https://serpapi.com) (or use Pro for better results)
+2. **OpenAI**: Get API key from [platform.openai.com](https://platform.openai.com) (optional - can use Ollama locally)
 
 ## 🗂  2  Project Setup
 
 ### A  Get the project folder
-Download or clone this folder (for example to `~/wot-poc`).
-
-```
-wot-poc/
-  data/
-    input.xlsx        # client-provided workbook
-  src/                # Python scripts
-  README.md
-  requirements.txt
-  .env
+```bash
+git clone <repository-url>
+cd wot-poc
 ```
 
 ### B  Create and activate a Python environment
 ```bash
-cd ~/wot-poc
+cd wot-poc
 python3 -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
@@ -82,179 +50,182 @@ pip install -r requirements.txt
 
 ## ⚙️  3  Configure the environment
 
-Your `.env` file (included) should look like:
-```
-# ====== CORE PATHS / MODES ======
-USE_MANUAL_ONLY=false             # we want real web search for the POC
-MAX_URLS_PER_PROJECT=6
+Create a `.env` file in the project root with:
 
-# ====== SEARCHER (HTML DDG/Bing fallback) ======
-SEARCH_REGION=us-en               # for logs only
-SEARCH_SAFESEARCH=moderate
-SEARCH_BACKOFF_SECONDS=2          # increase to 3-4 if you see throttling
-SEARCH_UA=Mozilla/5.0 (Macintosh; Intel Mac OS X 13_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36
+```env
+# ====== API Keys ======
+SERPAPI_API_KEY=your_serpapi_key_here          # Required for web search
+OPENAI_API_KEY=your_openai_key_here            # Required for LLM extraction
 
-# ====== SCRAPER ======
-SCRAPE_CONNECT_TIMEOUT=10
-SCRAPE_READ_TIMEOUT=25
-SCRAPE_MAX_RETRIES=3
-SCRAPE_BACKOFF=0.5
-SCRAPE_MAX_BYTES=2000000
-SCRAPE_SLEEP_BETWEEN=0.4
-SCRAPE_UA=Mozilla/5.0 (Macintosh; Intel Mac OS X 13_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36
+# ====== LLM Configuration ======
+LLM_PROVIDER=openai                            # openai | ollama
+LLM_MODEL=gpt-4o-mini                          # Model name
+LLM_MAX_TOKENS=4000                            # Maximum output tokens
 
-# ====== LLM PROVIDER SWITCH (CLI can override these) ======
-LLM_PROVIDER=ollama               # openai | ollama
-# -- OpenAI (used when LLM_PROVIDER=openai) --
-OPENAI_API_KEY=                   # set this if you use OpenAI
-OPENAI_MODEL=gpt-4o-mini
-OPENAI_TEMPERATURE=0
-OPENAI_MAX_OUTPUT_TOKENS=1200
+# ====== Search Configuration ======
+MAX_URLS_PER_PROJECT=50                        # Maximum URLs to collect per project
 
-# -- Ollama (used when LLM_PROVIDER=ollama) --
+# ====== Optional: Ollama (local LLM) ======
 OLLAMA_HOST=http://localhost:11434
 OLLAMA_MODEL=llama3.1
 ```
 
-> **Tip:**  
-> To let the script find URLs automatically, set  
-> `USE_MANUAL_ONLY=false`.
+## 📋  4  Codebook / Data Definitions
 
-## 🧩  4  Running the POC
+The system uses a **codebook** (field definitions) from `data/wot_data_definations.xlsx` to guide extraction.
 
-### Step 1  Start Ollama
+### Import Data Definitions
+If you update the Excel file with data definitions:
 ```bash
-ollama serve
+python import_codebook_excel.py data/wot_data_definations.xlsx
 ```
-*(or `brew services start ollama` on macOS)*
+
+This creates `data/codebook.json` which the system automatically uses for better extraction guidance.
+
+## 🧩  5  Running the POC
+
+### Step 1  Ensure `.env` has API keys
+Verify your `.env` file contains `SERPAPI_API_KEY` and `OPENAI_API_KEY`.
 
 ### Step 2  Activate the virtual environment
 ```bash
 cd ~/wot-poc
-source .venv/bin/activate
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
 ```
 
-### Step 3  Ensure `data/input.xlsx` is the client file  
-It should contain four filled sample rows and several blank rows for projects to be auto-filled.
-
-### Step 4  Run the POC
+### Step 3  Run extraction
 ```bash
-Local (Ollama)
-ollama pull llama3.1
-python src/main.py --targets all --provider ollama --model llama3.1 # -- for all the Project ID's from Input.xlsx --
-or
-python src/main.py --targets "<NAME>" --provider ollama --model llama3.1 # -- for sepecfic Project ID's from Input.xlsx --
+# Single project
+python src/main.py --targets "cheqd"
 
-OpenAI:
-export OPENAI_API_KEY=sk-...
-python src/main.py --targets all --provider openai --model gpt-4o-mini # -- for all the Project ID's from Input.xlsx --
-or
-python src/main.py --targets "<NAME>" --provider openai --model gpt-4o-mini # -- for sepecfic Project ID's from Input.xlsx --
+# Multiple projects
+python src/main.py --targets "cheqd,esatus,MÁS,Trusted Biz"
+
+# All projects from input.xlsx (process all rows)
+python src/main.py --targets all
 ```
 
-What happens:
-1. The script reads `input.xlsx` and detects rows that have names but mostly empty fields.  
-2. For each project name, it scrapes or loads URLs (or reads `manual_urls.txt` if provided).  
-3. It asks Llama 3.1 or OpenAPI to extract structured data.  
-4. It merges results into `data/output.xlsx`, keeping existing data intact.  
-5. It adds a **Comparision** sheet listing evidence URLs and validation notes.
+**Options:**
+- `--targets`: Comma-separated project names (or "all")
+- `--provider`: `openai` (default) or `ollama`
+- `--model`: Model name (default: `gpt-4o-mini`)
+- `--max-output-tokens`: Max tokens for LLM response (default: 4000)
 
-## 🌐  5  (Recommended) Add Manual URLs
-You can guide the model by supplying 2-4 official sources per project:
-
+### Step 4  Check results
 ```bash
-mkdir -p data/cache/Your_Project_Name
-nano data/cache/Your_Project_Name/manual_urls.txt
+# Check accuracy (for projects with manual data)
+python check_accuracy.py
 ```
 
-Each line = one URL (e.g., official site, press release, GitHub repo).
-
-When `USE_MANUAL_ONLY=true`, the script uses only these URLs — no online search.
+Open `data/output.xlsx` to see:
+- **Input sheet**: Original data
+- **AI sheet**: AI-extracted data with sources
+- **Comparison sheet**: Side-by-side comparison (only Data Columns are matched)
 
 ## 📄  6  Outputs
 
 | File | Description |
-|------|--------------|
-| **data/output.xlsx** | Final results merged into the original structure |
-| **Review sheet** | Field values, source URLs, and validation issues |
-| **data/cache/<Project>/record_debug.json** | Full AI JSON response |
-| **data/cache/<Project>/texts/*.json** | Scraped text from each page |
+|------|-------------|
+| **data/output.xlsx** | Final results with Input, AI, and Comparison sheets |
+| **data/cache/<Project>/urls.json** | URLs found for each project |
+| **data/cache/<Project>/texts/*.txt** | Scraped text from each page |
+| **data/cache/<Project>/llm_raw.json** | Raw LLM response |
+| **data/cache/<Project>/serpapi_debug.json** | SerpAPI search results (if available) |
+| **logs/wot.log** | Execution logs |
 
-## 🧰  7  Troubleshooting
+## 🔍  7  How It Works
+
+1. **Search Phase** (`searcher.py`):
+   - Uses SerpAPI to find relevant URLs via Google search
+   - Performs multiple targeted queries (e.g., "project name SSI", "project name about")
+   - Filters and prioritizes official sources (homepage, about pages, docs)
+   - Uses known websites from `input.xlsx` to improve targeting
+
+2. **Scraping Phase** (`scraper.py`):
+   - Fetches HTML from collected URLs
+   - Extracts clean text content using BeautifulSoup
+   - Caches scraped content for debugging
+
+3. **Extraction Phase** (`extractor.py`):
+   - Packs context from prioritized pages (homepage > about > docs > blog)
+   - Uses codebook definitions to guide LLM extraction
+   - Calls LLM (OpenAI or Ollama) with structured prompt
+   - Extracts all fields with source evidence
+
+4. **Export Phase** (`export_excel.py`):
+   - Merges AI-extracted data with input data
+   - Creates comparison sheet (only matches Data Columns, excludes source fields)
+   - Uses semantic similarity matching for long text fields (60% threshold)
+
+## 🎯  8  Accuracy Metrics
+
+The system calculates accuracy **only for Data Columns**:
+- ✅ **Included**: All data fields from `wot_data_definations.xlsx`
+- ❌ **Excluded**: Product Name, ID, Live Source, Archived Source fields
+
+Text fields use semantic similarity matching (60% threshold) - meaning if two texts convey the same meaning, they're considered a match.
+
+## 🧰  9  Troubleshooting
 
 | Issue | Solution |
-|-------|-----------|
-| `ModuleNotFoundError` | Activate the venv → `pip install -r requirements.txt` |
-| `could not connect to localhost:11434` | Start Ollama: `ollama serve` |
-| First run very slow | Normal — model loads into memory (1-2 min) |
-| Output blank | Add manual URLs or set `USE_MANUAL_ONLY=true` |
-| Wrong Python path (macOS/Xcode) | Use `python3` explicitly (from Homebrew) |
+|-------|----------|
+| `ModuleNotFoundError` | Activate venv → `pip install -r requirements.txt` |
+| `SERPAPI_KEY not found` | Add `SERPAPI_API_KEY=...` to `.env` file |
+| `OPENAI_API_KEY not found` | Add `OPENAI_API_KEY=...` to `.env` file |
+| Low accuracy | Check SerpAPI key is active, increase `MAX_URLS_PER_PROJECT`, verify codebook imported |
+| Wrong entity extracted | Ensure `Website` column in `input.xlsx` has correct URLs for known projects |
 
-## 🧾  8  Example Run Log
+## 💡  10  Tips for Better Results
 
-```
-$ ollama serve
-$ source .venv/bin/activate
-$ python src/main.py --targets auto
+- **Known Websites**: Fill `Website` column in `input.xlsx` - helps target correct entity
+- **Codebook**: Keep `data/wot_data_definations.xlsx` updated with field definitions
+- **More URLs**: Increase `MAX_URLS_PER_PROJECT` in `.env` (default: 50)
+- **Context Size**: System uses top 20 pages with 10K chars each for extraction
+- **Semantic Matching**: Long text fields are matched using similarity (not exact match)
 
-[auto] detected targets: ['Mina', 'eIDAS Bridge', 'Verida', 'ID2020']
-Processing Mina
-Processing eIDAS Bridge
-Processing Verida
-Processing ID2020
-Done → /Users/<user>/wot-poc/data/output.xlsx
-```
-
-Open `data/output.xlsx` → check both the **main sheet** and **Review** sheet.
-
-## 💡  9  Tips for Better Results
-- Always include a few good manual URLs for each blank project.  
-- Increase `MAX_URLS_PER_PROJECT` to 6–8 for richer context.  
-- Once stable, raise snippet length in `extractor.py` for deeper extractions.  
-- For debugging, open `data/cache/<Project>/record_debug.json`.  
-
-## 🧩  10  Folder Structure
+## 🧩  11  Folder Structure
 
 ```
 wot-poc/
   ├─ data/
-  │   ├─ input.xlsx
-  │   ├─ output.xlsx
-  │   └─ cache/<Project>/
+  │   ├─ input.xlsx                  # Input projects
+  │   ├─ output.xlsx                 # Results
+  │   ├─ wot_data_definations.xlsx   # Field definitions
+  │   ├─ codebook.json               # Generated from Excel (auto-created)
+  │   └─ cache/<Project>/            # Cache per project
   │       ├─ urls.json
-  │       └─ texts/01.json, 02.json, ...
+  │       ├─ texts/*.txt
+  │       └─ llm_raw.json
   ├─ logs/
   │   └─ wot.log
   ├─ src/
-  │   ├─ main.py
+  │   ├─ main.py                     # Entry point
   │   └─ app/
-  │       ├─ __init__.py
   │       ├─ config/
-  │       │   ├─ __init__.py
-  │       │   └─ codebook.py
+  │       │   └─ codebook.py         # Codebook loader
   │       ├─ core/
-  │       │   ├─ __init__.py
-  │       │   ├─ schema.py
-  │       │   └─ export_excel.py
+  │       │   ├─ schema.py           # Schema utilities
+  │       │   └─ export_excel.py     # Excel export & comparison
   │       ├─ utils/
-  │       │   ├─ __init__.py
-  │       │   └─ logger.py
+  │       │   └─ logger.py           # Logging
   │       └─ workers/
-  │           ├─ __init__.py
-  │           ├─ searcher.py
-  │           ├─ scraper.py
-  │           ├─ extractor.py
-  │           └─ openai_client.py
-  ├─ .env
+  │           ├─ searcher.py         # SerpAPI search
+  │           ├─ scraper.py          # Web scraping
+  │           ├─ extractor.py        # LLM extraction
+  │           └─ llm_client.py       # LLM client (OpenAI/Ollama)
+  ├─ .env                            # API keys (gitignored)
   ├─ requirements.txt
   └─ README.md
 ```
 
-## ✅  11  Summary
+## ✅  12  Summary
 
-After following this README, **anyone** can:
-1. Install Python and Ollama or work with OpenAI by passing the private key.  
-2. Pull and run the Llama 3.1 model locally.  
-3. Run `python src/main.py --targets auto`.  
-4. Open `data/output.xlsx` to review AI-filled fields and evidence.
-5. Open `logs/woc.log` to review the results, errors 
+This POC automatically:
+1. ✅ Searches the web for project information (SerpAPI)
+2. ✅ Scrapes and extracts text from relevant pages
+3. ✅ Uses LLM to extract structured data using codebook definitions
+4. ✅ Exports results to Excel with source tracking
+5. ✅ Compares AI results with manual data (if available)
+6. ✅ Calculates accuracy metrics (Data Columns only)
+
+**Current Status**: Working on improving extraction accuracy to reach 60%+ on validation projects.

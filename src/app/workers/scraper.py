@@ -1,97 +1,223 @@
+"""
+Web scraper for fetching and extracting text content from URLs.
+
+This module handles:
+- URL normalization (adding schemes, cleaning spaces)
+- HTTP fetching with proper headers
+- HTML parsing and text extraction (removes scripts, styles)
+- Content caching for debugging
+
+The scraper converts HTML to clean, readable text that can be used by the LLM.
+"""
 from __future__ import annotations
-
 import logging
-import re
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Any, Optional
-import requests
+from typing import Any
+from urllib.parse import urlsplit, urlunsplit
 
-from app import CACHE_DIR
+import requests
+from bs4 import BeautifulSoup
 
 log = logging.getLogger(__name__)
 
-UA = (
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-    "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15"
-)
+@dataclass
+class Page:
+    """
+    Represents a scraped web page.
+    
+    Attributes:
+        url: The normalized URL
+        status: HTTP status code (None if request failed)
+        mime: Content-Type header value
+        text: Extracted readable text content
+    """
+    url: str
+    status: int | None
+    mime: str | None
+    text: str
 
-
-def _coerce_url(item: Any) -> str:
-    """Accept str | dict | tuple and return a normalized URL string or ''."""
-    if isinstance(item, str):
-        u = item
-    elif isinstance(item, dict):
-        u = item.get("url") or item.get("link") or ""
-    elif isinstance(item, (list, tuple)) and item:
-        u = item[0]
+def _normalize_url(item: str | dict[str, Any]) -> str | None:
+    """
+    Normalize and clean a URL from various input formats.
+    
+    Handles:
+    - String URLs: Direct URL strings
+    - Dict URLs: {"url": "...", ...} format
+    - Missing schemes: Adds https:// if missing
+    - Embedded spaces: Removes spaces from URLs
+    
+    Args:
+        item: Either a string URL or dict with 'url' key
+    
+    Returns:
+        str: Normalized URL, or None if invalid/empty
+    """
+    # Extract URL from dict or string
+    if isinstance(item, dict):
+        u = (item.get("url") or "").strip()
     else:
-        u = ""
-    u = (u or "").strip()
-    u = re.sub(r"\s+", "", u)
+        u = (item or "").strip()
     if not u:
-        return ""
-    if not re.match(r"^https?://", u):
-        u = "https://" + u.lstrip("/")
-    u = re.sub(r"/{2,}", "/", u.replace("://", "§§")).replace("§§", "://")
+        return None
+
+    # Some inputs had embedded spaces (e.g., "trusted biz.io")
+    # Remove all spaces from URLs
+    u = u.replace(" ", "")
+
+    # Ensure scheme (https://) if missing
+    parts = urlsplit(u)
+    if not parts.scheme:
+        u = "https://" + u
+        parts = urlsplit(u)
+
+    # Rebuild URL to normalize (removes redundant parts, etc.)
+    u = urlunsplit(parts)
     return u
 
-
-def _fetch(url: str, timeout: int = 15) -> Dict[str, Any]:
-    """Fetch a single URL, returning a page record with text (or empty on error)."""
+def _extract_text(html: str) -> str:
+    """
+    Extract clean, readable text from HTML using BeautifulSoup.
+    
+    Removes:
+    - <script> tags (JavaScript)
+    - <style> tags (CSS)
+    - <noscript> tags
+    
+    Then extracts all text content and normalizes whitespace.
+    
+    Args:
+        html: Raw HTML string
+    
+    Returns:
+        str: Clean text content with normalized whitespace
+    """
     try:
-        r = requests.get(
-            url,
-            headers={"User-Agent": UA, "Accept": "text/html,application/xhtml+xml"},
-            timeout=timeout,
-            allow_redirects=True,
-        )
-        status = r.status_code
-        ctype = r.headers.get("Content-Type", "").split(";")[0].strip().lower()
-        txt = ""
-        if 200 <= status < 300 and ctype in ("text/html", "text/plain"):
-            r.encoding = r.apparent_encoding or r.encoding or "utf-8"
-            txt = r.text or ""
-            log.info("[scrape] %s → %s → %d chars :: %s", url, ctype or "text/html", len(txt), url)
+        soup = BeautifulSoup(html, 'html.parser')
+        
+        # Remove script and style elements (they're not useful for text extraction)
+        for script in soup(["script", "style", "noscript"]):
+            script.decompose()
+        
+        # Get text content, separated by spaces
+        text = soup.get_text(separator=' ', strip=True)
+        
+        # Collapse multiple spaces/newlines into single space
+        import re
+        text = re.sub(r'\s+', ' ', text)
+        return text.strip()
+    except Exception as e:
+        log.warning("[scrape] text extraction failed: %s", e)
+        return ""
+
+def _fetch(url: str, timeout=15) -> Page:
+    """
+    Fetch a single URL and extract its text content.
+    
+    Args:
+        url: The URL to fetch
+        timeout: Request timeout in seconds (default: 15)
+    
+    Returns:
+        Page: Page object with url, status, mime, and extracted text
+    
+    Note:
+        Uses a user-agent string to appear as a regular browser.
+        Only processes text/html and JSON content types.
+    """
+    try:
+        # Use a browser-like user agent to avoid blocking
+        headers = {
+            "User-Agent": "Mozilla/5.0 (compatible; wot-poc/1.0; +https://example.local)"
+        }
+        
+        # Make HTTP GET request
+        r = requests.get(url, headers=headers, timeout=timeout, allow_redirects=True)
+        
+        # Check content type
+        ctype = r.headers.get("content-type", "")
+        text = r.text if ("text/" in ctype or "json" in ctype or ctype == "") else ""
+        
+        # Extract readable text from HTML if it's HTML content
+        if text and ("html" in ctype.lower() or not ctype):
+            extracted_text = _extract_text(text)
+            if extracted_text:
+                text = extracted_text
+                log.info("[scrape] extracted readable text: %d chars from HTML", len(text))
+        
+        # Log result
+        if r.status_code != 200:
+            log.info("[scrape] non-200 %s → %s :: non-200 %s", r.status_code, url, r.status_code)
         else:
-            msg = f"non-200 {status}" if status != 200 else f"non-text {ctype or 'unknown'}"
-            log.info("[scrape] %s → %s :: %s", msg, url, msg)
-        return {"url": url, "status": status, "mime": ctype or "text/html", "text": txt}
+            log.info("[scrape] %s → %s → %d chars :: %s", ctype.split(";")[0] or "text/html", url, len(text), url)
+        
+        return Page(url=url, status=r.status_code, mime=ctype, text=text)
     except requests.RequestException as e:
         log.warning("[scrape] ERROR :: %s :: %s", url, e)
-        return {"url": url, "status": 0, "mime": "error/requests", "text": ""}
+        return Page(url=url, status=None, mime=None, text="")
 
-
-def scrape_urls(project: str, url_items: List[Any], save_texts: bool = True) -> List[Dict[str, Any]]:
-    """Fetch a list of URLs (strings or dicts). Returns page records, writes cache."""
-    proj_dir = Path(CACHE_DIR) / project
-    texts_dir = proj_dir / "texts"
-    proj_dir.mkdir(parents=True, exist_ok=True)
-    texts_dir.mkdir(parents=True, exist_ok=True)
-
+def scrape_urls(project: str, url_items: list, cache_dir: Path | None = None) -> list[dict]:
+    """
+    Scrape multiple URLs for a project and extract text content.
+    
+    For each URL:
+    1. Normalizes the URL (adds scheme, removes spaces)
+    2. Fetches the page
+    3. Extracts clean text from HTML
+    4. Optionally caches the result for debugging
+    
+    Args:
+        project: Project name (for logging and cache organization)
+        url_items: List of URLs (strings or dicts with 'url' key)
+        cache_dir: Optional directory to cache scraped text files
+    
+    Returns:
+        list[dict]: List of page dicts, each with:
+            - url: The normalized URL
+            - status: HTTP status code
+            - mime: Content-Type
+            - text: Extracted text content
+    
+    Note:
+        Cached files are saved as cache_dir/texts/01.txt, 02.txt, etc.
+        Each cache file contains the URL and first 100KB of text.
+    """
     log.info("[scrape] start for %s: %d urls", project, len(url_items))
-
-    pages: List[Dict[str, Any]] = []
-    idx = 0
-    for raw in url_items:
-        url = _coerce_url(raw)
+    pages: list[dict] = []
+    
+    # Process each URL
+    for item in url_items:
+        url = _normalize_url(item)
         if not url:
             continue
-        rec = _fetch(url)
-        idx += 1
-        if rec.get("text"):
-            # Write an easy-to-inspect text file per page (optional)
-            if save_texts:
-                safe = re.sub(r"[^a-zA-Z0-9\-\.]+", "_", re.sub(r"^https?://", "", url))[:80]
-                (texts_dir / f"{idx:02d}-{safe}.txt").write_text(rec["text"], encoding="utf-8", errors="ignore")
-            log.info("[scrape] %d/%d %s :: %s", idx, len(url_items), rec.get("mime", "text/html"), url)
-        else:
-            # already logged as non-200/blocked/error
-            log.info("[scrape] %d/%d (empty/blocked) :: %s", idx, len(url_items), url)
-        pages.append(rec)
+        
+        # Fetch and extract text
+        page = _fetch(url)
+        
+        # Convert Page dataclass to dict for compatibility with extractor
+        pages.append({
+            "url": page.url,
+            "status": page.status,
+            "mime": page.mime,
+            "text": page.text,
+        })
 
-    # Also keep a structured list without the full page text for quick glance
-    lite = [{"url": p["url"], "status": p["status"], "mime": p["mime"], "chars": len(p.get("text") or "")} for p in pages]
-    (proj_dir / "pages.json").write_text(__import__("json").dumps(lite, indent=2), encoding="utf-8")
-
-    log.info("[scrape] done: wrote texts to %s", texts_dir)
+    # Cache scraped text for debugging (optional)
+    if cache_dir:
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        texts_dir = cache_dir / "texts"
+        texts_dir.mkdir(exist_ok=True)
+        
+        # Write each page to a numbered text file
+        for i, p in enumerate(pages, start=1):
+            # Keep small text cache to avoid huge files (first 100KB only)
+            snippet = p.get("text", "")[:100000] if p.get("text") else ""
+            url = p.get("url", "")
+            
+            # Format: [URL]url\ncontent
+            with open(texts_dir / f"{i:02d}.txt", "w") as f:
+                f.write(f"[URL]{url}\n{snippet}")
+        
+        log.info("[scrape] done: wrote texts to %s", texts_dir)
+    
     return pages
