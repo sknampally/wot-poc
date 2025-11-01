@@ -127,10 +127,10 @@ Open `data/output.xlsx` to see:
 | File | Description |
 |------|-------------|
 | **data/output.xlsx** | Final results with Input, AI, and Comparison sheets |
-| **data/cache/<Product Name>/urls.json** | URLs found for each project |
-| **data/cache/<Product Name>/texts/*.txt** | Scraped text from each page |
-| **data/cache/<Product Name>/llm_raw.json** | Raw LLM response |
-| **data/cache/<Product Name>/serpapi_debug.json** | SerpAPI search results (if available) |
+| **data/cache/{Product Name}/urls.json** | URLs found for each project |
+| **data/cache/{Product Name}/texts/*.txt** | Scraped text from each page |
+| **data/cache/{Product Name}/llm_raw.json** | Raw LLM response |
+| **data/cache/{Product Name}/serpapi_debug.json** | SerpAPI search results (if available) |
 | **logs/wot.log** | Execution logs |
 
 ## 🔍  7  How It Works
@@ -192,7 +192,7 @@ wot-poc/
   │   ├─ output.xlsx                 # Results
   │   ├─ wot_data_definations.xlsx   # Field definitions
   │   ├─ codebook.json               # Generated from Excel (auto-created)
-  │   └─ cache/<Product Name>/       # Cache per project
+  │   └─ cache/{Product Name}/      # Cache per project (replace with actual product name)
   │       ├─ urls.json
   │       ├─ texts/*.txt
   │       └─ llm_raw.json
