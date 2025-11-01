@@ -1,156 +1,83 @@
 # src/main.py
 from __future__ import annotations
 
-import os
-import sys
 import argparse
-import logging
+import os
 from pathlib import Path
 from typing import List, Dict, Any
 
-# 1) Ensure repo root on sys.path (so "app.*" imports work when run directly)
-ROOT = Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
-
-# 2) Lightweight .env loader (no hard dep, optional)
-def _load_dotenv_if_present() -> None:
-    try:
-        from dotenv import load_dotenv  # type: ignore
-        env_path = ROOT.parent / ".env" if (ROOT.name == "src") else ROOT / ".env"
-        if env_path.exists():
-            load_dotenv(dotenv_path=env_path)
-    except Exception:
-        # Silently ignore if python-dotenv is missing; env vars can still be provided by shell
-        pass
-
-_load_dotenv_if_present()
-
-# 3) Regular imports from our package
+from app import DATA_DIR, INPUT_XLSX, OUTPUT_XLSX
 from app.utils.logger import setup_logging, get_logger
-from app.core.schema import load_headers
+from app.config.codebook import load_codebook
+from app.core.schema import load_headers, name_header
 from app.core.export_excel import write_three_sheets
 from app.workers.searcher import search_urls
 from app.workers.scraper import scrape_urls
 from app.workers.extractor import extract_record
 
-log = logging.getLogger("main")
+log = get_logger("main")
 
+def parse_args() -> argparse.Namespace:
+    p = argparse.ArgumentParser()
+    p.add_argument("--targets", type=str, required=True, help='Comma or quote-separated list, e.g. "cheqd, esatus"')
+    p.add_argument("--provider", type=str, default=os.getenv("LLM_PROVIDER", "openai"))
+    p.add_argument("--model", type=str, default=os.getenv("LLM_MODEL", "gpt-4o-mini"))
+    p.add_argument("--max-output-tokens", type=int, default=int(os.getenv("OPENAI_MAX_OUTPUT_TOKENS", "800")))
+    return p.parse_args()
 
-def parse_args(argv: List[str]) -> argparse.Namespace:
-    p = argparse.ArgumentParser(
-        description="WOT-POC: scrape → extract → export (3-sheet Excel)"
-    )
-    p.add_argument(
-        "--targets",
-        required=True,
-        help='Comma-separated project names, e.g. "cheqd,Trusted Biz"',
-    )
-    p.add_argument(
-        "--provider",
-        default=os.getenv("LLM_PROVIDER", "openai"),
-        help="LLM provider (only 'openai' is wired here).",
-    )
-    p.add_argument(
-        "--model",
-        default=os.getenv("LLM_MODEL", "gpt-4o-mini"),
-        help="OpenAI model name (e.g., gpt-4o-mini).",
-    )
-    p.add_argument(
-        "--max-output-tokens",
-        type=int,
-        default=int(os.getenv("OPENAI_MAX_OUTPUT_TOKENS", "800")),
-        help="Max tokens for the LLM response.",
-    )
-    p.add_argument(
-        "--input",
-        default=str((ROOT.parent / "data" / "input.xlsx") if ROOT.name == "src" else (ROOT / "data" / "input.xlsx")),
-        help="Path to input.xlsx (client sheet).",
-    )
-    p.add_argument(
-        "--output",
-        default=str((ROOT.parent / "data" / "output.xlsx") if ROOT.name == "src" else (ROOT / "data" / "output.xlsx")),
-        help="Path to output.xlsx (will be created/updated).",
-    )
-    return p.parse_args(argv)
+def main() -> None:
+    logfile = setup_logging()  # set level from LOG_LEVEL (default INFO)
+    log.info("Logging initialized at %s", logfile)
 
-
-def ensure_paths() -> Dict[str, Path]:
-    # Resolve common paths relative to repo root
-    repo = ROOT.parent if ROOT.name == "src" else ROOT
-    data_dir = repo / "data"
-    cache_dir = data_dir / "cache"
-    logs_dir = repo / "logs"
-    data_dir.mkdir(parents=True, exist_ok=True)
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    logs_dir.mkdir(parents=True, exist_ok=True)
-    return {
-        "repo": repo,
-        "data": data_dir,
-        "cache": cache_dir,
-        "logs": logs_dir,
-        "input_xlsx": data_dir / "input.xlsx",
-        "output_xlsx": data_dir / "output.xlsx",
-    }
-
-
-def main(argv: List[str] | None = None) -> None:
-    args = parse_args(sys.argv[1:] if argv is None else argv)
-
-    # Set up logging once, file at <repo>/logs/wot.log, INFO on console, DEBUG in file
-    logfile = setup_logging()
-    log = get_logger("main")
-
-    # Paths
-    paths = ensure_paths()
-    input_xlsx = Path(args.input).resolve()
-    output_xlsx = Path(args.output).resolve()
-    log.info("input=%s output=%s", input_xlsx, output_xlsx)
-
-    # Load headers from the first sheet of input.xlsx (creates Input if missing)
-    headers = load_headers(input_xlsx)
-
-    # Prepare targets
+    args = parse_args()
     targets = [t.strip() for t in args.targets.split(",") if t.strip()]
-    if not targets:
-        log.error("No targets provided after parsing --targets.")
-        sys.exit(2)
 
-    # Accumulate extracted records
+    log.info("input=%s output=%s", INPUT_XLSX, OUTPUT_XLSX)
+
+    headers: List[str] = load_headers(Path(INPUT_XLSX))
+    nm_col = name_header(headers)
+    codebook = load_codebook()
+
     all_records: List[Dict[str, Any]] = []
 
     for project in targets:
+        log.info("Processing %s", project)
+
+        # --- SEARCH
+        target_count = int(os.getenv("MAX_URLS_PER_PROJECT", "15"))
+        url_items = search_urls(project, target_count=target_count)
+
+        # --- SCRAPE
+        pages = scrape_urls(project, url_items)
+
+        # --- EXTRACT
         try:
-            log.info("Processing %s", project)
-
-            # Search (no SerpAPI dependency; uses guesses/curated/manual seeds)
-            url_items = search_urls(project, target_count=int(os.getenv("MAX_URLS_PER_PROJECT", "10")))
-
-            # Scrape → pages
-            pages = scrape_urls(project, url_items)
-
-            # Extract (LLM + seeds merge)
+            kwargs = {
+                "provider": args.provider,
+                "model": args.model,
+                "max_output_tokens": args.max_output_tokens,
+                "codebook": codebook,
+            }
             rec = extract_record(
                 project=project,
                 headers=headers,
                 pages=pages,
-                provider=args.provider,
-                model=args.model,
-                max_output_tokens=args.max_output_tokens,
+                **kwargs,
             )
-            all_records.append(rec)
-
         except Exception as e:
-            log.exception("Unhandled error while processing %s: %s", project, e)
+            log.exception("Unhandled error while extracting %s: %s", project, e)
+            # still produce a seed row with just the name
+            rec = {h: "" for h in headers}
+            rec[nm_col] = project
+            rec["_evidence"] = []
 
-    # Export: keep/append AI Data rows, rebuild Comparison fresh
-    try:
-        write_three_sheets(input_xlsx, headers, all_records, output_xlsx)
-        log.info("Done → %s", output_xlsx)
-    except Exception as e:
-        log.exception("Failed to write Excel: %s", e)
-        sys.exit(1)
+        all_records.append(rec)
 
+    # --- WRITE EXCEL (append/update AI sheet, rebuild Comparison)
+    log.info("Excel writing → %s", OUTPUT_XLSX)
+    write_three_sheets(Path(INPUT_XLSX), headers, all_records, Path(OUTPUT_XLSX))
+    log.info("Excel written with 3 sheets → %s", OUTPUT_XLSX)
+    log.info("Done → %s", OUTPUT_XLSX)
 
 if __name__ == "__main__":
     main()

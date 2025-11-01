@@ -1,58 +1,61 @@
 # src/app/utils/logger.py
-from __future__ import annotations
-import logging, os
+import logging
+import os
 from pathlib import Path
-from typing import Optional
 
-_LOGGER: Optional[logging.Logger] = None
+# --- LOGGING CONFIGURATION ---
 
-def _project_root() -> Path:
-    # repo root is two levels up from this file: src/app/utils/logger.py
-    return Path(__file__).resolve().parents[3]
+# Place logs/ at project root (same level as src/, data/, etc.)
+LOG_DIR = Path(__file__).resolve().parents[3] / "logs"
+LOG_DIR.mkdir(parents=True, exist_ok=True)
+LOGFILE = LOG_DIR / "wot.log"
 
-def get_log_dir() -> Path:
-    # Put logs at "<repo>/logs"
-    root = _project_root()
-    d = root / "logs"
-    d.mkdir(parents=True, exist_ok=True)
-    return d
 
-def setup_logging(level: int = logging.INFO) -> Path:
+def setup_logging():
     """
-    Initialize root logging:
-      • File: logs/wot.log (DEBUG+)
-      • Console: INFO+ (concise)
-    Returns the logfile path.
+    Initializes logging:
+      - File logs everything (DEBUG and above)
+      - Console level configurable via env var LOG_LEVEL_CONSOLE
+        (default = WARNING)
     """
-    global _LOGGER
-    logfile = get_log_dir() / "wot.log"
+    # Read console log level from environment variable
+    level_str = os.getenv("LOG_LEVEL_CONSOLE", "WARNING").upper()
+    console_level = getattr(logging, level_str, logging.WARNING)
 
-    # Reset any existing handlers (avoid duplicate lines when reloading)
-    root = logging.getLogger()
-    for h in list(root.handlers):
-        root.removeHandler(h)
-    root.setLevel(logging.DEBUG)  # capture everything centrally
+    logger = logging.getLogger()
+    logger.setLevel(logging.DEBUG)  # Always capture everything
 
-    # File handler (full detail)
-    fh = logging.FileHandler(logfile, encoding="utf-8")
+    # Clear previous handlers to prevent duplicates on re-runs
+    if logger.hasHandlers():
+        logger.handlers.clear()
+
+    # --- File Handler (everything) ---
+    fh = logging.FileHandler(LOGFILE, mode="a", encoding="utf-8")
     fh.setLevel(logging.DEBUG)
-    ffmt = logging.Formatter(
+    fh_formatter = logging.Formatter(
         "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
-    fh.setFormatter(ffmt)
-    root.addHandler(fh)
+    fh.setFormatter(fh_formatter)
+    logger.addHandler(fh)
 
-    # Console handler (concise)
+    # --- Console Handler (configurable) ---
     ch = logging.StreamHandler()
-    ch.setLevel(level)
-    cfmt = logging.Formatter("%(levelname)s: %(message)s")
-    ch.setFormatter(cfmt)
-    root.addHandler(ch)
+    ch.setLevel(console_level)
+    ch_formatter = logging.Formatter("%(levelname)s: %(message)s")
+    ch.setFormatter(ch_formatter)
+    logger.addHandler(ch)
 
-    _LOGGER = logging.getLogger("main")
-    _LOGGER.info("Logging initialized at %s", logfile)
-    return logfile
+    logger.info(f"Logging initialized at {LOGFILE}")
+    logger.info(f"Console log level: {logging.getLevelName(console_level)}")
+    return logger
+
 
 def get_logger(name: str) -> logging.Logger:
+    """
+    Get a named logger instance for a specific module.
+    Example:
+        log = get_logger(__name__)
+        log.info("Something happened")
+    """
     return logging.getLogger(name)

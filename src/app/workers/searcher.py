@@ -1,93 +1,125 @@
-# src/app/workers/searcher.py
 from __future__ import annotations
-import os, re, json, logging
-from typing import List, Dict
+
+import json
+import os
+import re
 from pathlib import Path
+from typing import List, Set
+import logging
+import requests
 
-log = logging.getLogger("searcher")
+from app import CACHE_DIR
 
-def _slug(s: str) -> str:
-    return re.sub(r"\s+", "-", s.strip().lower())
+log = logging.getLogger(__name__)
 
-def _guess_domains(project: str) -> List[str]:
-    base = re.sub(r"[^a-z0-9]+", "", project.lower())
-    if not base:
-        base = _slug(project)
-    doms = [f"https://{base}.io/", f"https://{base}.com/", f"https://{base}.org/"]
-    # Lightweight alternates
-    alts = [
-        f"https://{base}.io/blog/",
-        f"https://{base}.io/docs/",
-        f"https://{base}.com/blog/",
-        f"https://{base}.org/news/",
-        f"https://{base}.io/ssi/",
-        f"https://{base}.io/developers/",
-        f"https://{base}.io/solutions/",
+
+def _normalize_url(u: str) -> str:
+    if not u:
+        return ""
+    u = u.strip()
+    # Replace spaces and weird whitespace
+    u = re.sub(r"\s+", "", u)
+    # Make sure we have a scheme
+    if not re.match(r"^https?://", u):
+        u = "https://" + u.lstrip("/")
+    # Drop trailing slash noise like double slashes
+    u = re.sub(r"/{2,}", "/", u.replace("://", "§§")).replace("§§", "://")
+    return u
+
+
+def _serpapi_search(query: str, api_key: str, num: int = 25) -> List[str]:
+    """Google results via SerpAPI (if SERPAPI_KEY is set)."""
+    try:
+        r = requests.get(
+            "https://serpapi.com/search.json",
+            params={
+                "engine": "google",
+                "q": query,
+                "num": min(max(num, 1), 100),
+                "api_key": api_key,
+            },
+            timeout=15,
+        )
+        r.raise_for_status()
+        data = r.json()
+        urls: List[str] = []
+        for item in data.get("organic_results", []) or []:
+            link = _normalize_url(item.get("link") or "")
+            if link:
+                urls.append(link)
+        log.info("[search] %s: SERPAPI results → %d", query, len(urls))
+        return urls
+    except Exception as e:
+        log.warning("[search] SERPAPI failed: %s", e)
+        return []
+
+
+def _fallback_seeds(project: str) -> List[str]:
+    """Deterministic seeds when SERPAPI is not available."""
+    base = re.sub(r"[^\w\-\. ]+", " ", project).strip().lower()
+    token = re.sub(r"\s+", "", base)
+    domains = [
+        f"{token}.io",
+        f"{token}.com",
+        f"{token}.org",
+        f"{token}.net",
+        f"{token}.id",
+        f"{token}.ai",
     ]
-    return doms + alts
+    paths = ["", "/blog", "/docs", "/developers", "/solutions", "/products",
+             "/about", "/news", "/ssi", "/digital-identity"]
 
-def _curated_paths(project: str) -> List[str]:
-    slug = _slug(project)
-    return [
-        # helpful generic places for DID/SSI vendors
-        f"https://github.com/{slug}",
-        f"https://medium.com/@{slug}",
-        f"https://www.linkedin.com/company/{slug}/",
-        f"https://{slug}.substack.com/",
-        # docs-ish
-        f"https://docs.{slug}.io/",
-        f"https://learn.{slug}.io/",
-        f"https://{slug}.io/blog/",
-        f"https://{slug}.io/tag/self-sovereign-identity/",
-        f"https://{slug}.io/tag/verifiable-credentials/",
+    urls: List[str] = []
+    for d in domains:
+        for p in paths:
+            urls.append(_normalize_url(f"https://{d}{p}"))
+
+    # A few generic homes for projects that only live on platforms
+    platform_homes = [
+        f"https://github.com/{token}",
+        f"https://www.linkedin.com/company/{token}/",
+        f"https://medium.com/@{token}",
+        f"https://{token}.substack.com/",
     ]
-
-def _manual_seeds_dir(project: str) -> List[str]:
-    # allow per-project manual seeds under data/cache/<Project>/manual_urls.txt
-    # one URL per line
-    root = Path(__file__).resolve().parents[3]  # repo root
-    path = root / "data" / "cache" / project / "manual_urls.txt"
-    if path.exists():
-        try:
-            lines = [ln.strip() for ln in path.read_text(encoding="utf-8").splitlines() if ln.strip()]
-            return lines
-        except Exception:
-            return []
-    return []
-
-def search_urls(project: str, target_count: int = 6) -> List[Dict[str, str]]:
-    """
-    Return a list of {'url':..., 'source':'manual|guess|curated'} without SerpAPI.
-    Honors env MAX_URLS_PER_PROJECT if present.
-    """
-    max_urls = int(os.getenv("MAX_URLS_PER_PROJECT", str(target_count)))
-    urls: List[Dict[str, str]] = []
-
-    manual = _manual_seeds_dir(project)
-    for u in manual:
-        urls.append({"url": u, "source": "manual"})
-    if len(urls) >= max_urls:
-        log.info("[search] %s: manual seeds -> %d", project, len(urls))
-        return urls[:max_urls]
-
-    guesses = _guess_domains(project)
-    for u in guesses:
-        if all(u != x["url"] for x in urls):
-            urls.append({"url": u, "source": "guess"})
-    if len(urls) >= max_urls:
-        log.info("[search] %s: guesses -> %d", project, len(urls))
-        return urls[:max_urls]
-
-    curated = _curated_paths(project)
-    for u in curated:
-        if all(u != x["url"] for x in urls):
-            urls.append({"url": u, "source": "curated"})
-    urls = urls[:max_urls]
-    log.info("[search] %s: done, total urls=%d", project, len(urls))
-
-    # save urls.json for traceability
-    root = Path(__file__).resolve().parents[3]
-    outdir = root / "data" / "cache" / project
-    outdir.mkdir(parents=True, exist_ok=True)
-    (outdir / "urls.json").write_text(json.dumps(urls, indent=2), encoding="utf-8")
+    urls.extend(platform_homes)
     return urls
+
+
+def search_urls(project: str, target_count: int = 25) -> List[str]:
+    """
+    Returns a LIST OF STRINGS (URLs), deduped and normalized.
+    Also writes `urls.json` in the project cache folder.
+    """
+    api_key = os.getenv("SERPAPI_KEY", "").strip()
+    if api_key:
+        log.info("[search] %s: using SERPAPI", project)
+        urls = _serpapi_search(f"{project} digital identity", api_key, num=target_count)
+        if not urls:
+            # Fallback if SerpAPI returns nothing
+            urls = _fallback_seeds(project)
+    else:
+        log.info("[search] %s: SERPAPI_KEY not set → using fallback seeds", project)
+        urls = _fallback_seeds(project)
+        log.info("[search] %s: fallback seeds → %d", project, len(urls))
+
+    # Dedupe while preserving order
+    seen: Set[str] = set()
+    clean: List[str] = []
+    for u in urls:
+        nu = _normalize_url(u)
+        if nu and nu not in seen:
+            seen.add(nu)
+            clean.append(nu)
+
+    if target_count > 0:
+        clean = clean[:target_count]
+
+    log.info("[search] %s: done, total urls=%d", project, len(clean))
+
+    # Persist to cache
+    proj_dir = Path(CACHE_DIR) / project
+    proj_dir.mkdir(parents=True, exist_ok=True)
+    (proj_dir / "urls.json").write_text(json.dumps(clean, indent=2), encoding="utf-8")
+    log.info("[search] %s: wrote %d urls → %s", project, len(clean), proj_dir / "urls.json")
+
+    return clean

@@ -155,9 +155,9 @@ python src/main.py --targets "<NAME>" --provider openai --model gpt-4o-mini # --
 What happens:
 1. The script reads `input.xlsx` and detects rows that have names but mostly empty fields.  
 2. For each project name, it scrapes or loads URLs (or reads `manual_urls.txt` if provided).  
-3. It asks Llama 3.1 to extract structured data.  
+3. It asks Llama 3.1 or OpenAPI to extract structured data.  
 4. It merges results into `data/output.xlsx`, keeping existing data intact.  
-5. It adds a **Review** sheet listing evidence URLs and validation notes.
+5. It adds a **Comparision** sheet listing evidence URLs and validation notes.
 
 ## 🌐  5  (Recommended) Add Manual URLs
 You can guide the model by supplying 2-4 official sources per project:
@@ -220,29 +220,31 @@ wot-poc/
   ├─ data/
   │   ├─ input.xlsx
   │   ├─ output.xlsx
-  │   └─ cache/
-  │       └─ <Project>/
-  │           ├─ manual_urls.txt       # optional manual seeds
-  │           ├─ urls.json             # discovered URLs
-  │           └─ texts/                # per-URL JSON (url, status, ctype, text)
+  │   └─ cache/<Project>/
+  │       ├─ urls.json
+  │       └─ texts/01.json, 02.json, ...
   ├─ logs/
   │   └─ wot.log
   ├─ src/
   │   ├─ main.py
   │   └─ app/
   │       ├─ __init__.py
-  │       ├─ utils/
+  │       ├─ config/
   │       │   ├─ __init__.py
-  │       │   └─ logger.py
+  │       │   └─ codebook.py
   │       ├─ core/
   │       │   ├─ __init__.py
   │       │   ├─ schema.py
   │       │   └─ export_excel.py
+  │       ├─ utils/
+  │       │   ├─ __init__.py
+  │       │   └─ logger.py
   │       └─ workers/
   │           ├─ __init__.py
   │           ├─ searcher.py
   │           ├─ scraper.py
-  │           └─ extractor.py
+  │           ├─ extractor.py
+  │           └─ openai_client.py
   ├─ .env
   ├─ requirements.txt
   └─ README.md
@@ -251,9 +253,8 @@ wot-poc/
 ## ✅  11  Summary
 
 After following this README, **anyone** can:
-1. Install Python and Ollama.  
+1. Install Python and Ollama or work with OpenAI by passing the private key.  
 2. Pull and run the Llama 3.1 model locally.  
 3. Run `python src/main.py --targets auto`.  
 4. Open `data/output.xlsx` to review AI-filled fields and evidence.
-
-No API keys, no cloud usage — everything runs **locally** and reproducibly.
+5. Open `logs/woc.log` to review the results, errors 
