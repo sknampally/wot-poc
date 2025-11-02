@@ -238,8 +238,9 @@ def _serpapi_search(queries: List[str], num: int, api_key: str) -> Tuple[List[st
     # Process each query
     for i, q in enumerate(queries):
         # Small delay between queries to avoid rate limiting (human-like behavior)
+        # OPTIMIZED: Reduced delay since we have fewer queries now
         if i > 0:
-            time.sleep(0.5)  # 500ms delay between queries
+            time.sleep(0.2)  # 200ms delay between queries (optimized for speed)
         
         # Build SerpAPI request
         params = {
@@ -404,7 +405,7 @@ def search_urls(project: str, cache_dir: Path | None = None, known_website: str 
         - Priority 4: Blog/news
         - Priority 5: Everything else
     """
-    max_urls = int(os.getenv("MAX_URLS_PER_PROJECT", "50"))  # Increased default to get more sources
+    max_urls = int(os.getenv("MAX_URLS_PER_PROJECT", "30"))  # Balanced default for speed and quality
     
     # Check both SERPAPI_KEY and SERPAPI_API_KEY for compatibility
     api_key = os.getenv("SERPAPI_API_KEY", os.getenv("SERPAPI_KEY", "")).strip()
@@ -426,32 +427,48 @@ def search_urls(project: str, cache_dir: Path | None = None, known_website: str 
             domain_guess = _maybe_domain_from_name(project)
         
         # Human-like Google search queries - prioritize digital identity context
+        # OPTIMIZED: Reduced from 12-16 queries to 7-10 queries for faster processing
         # Include industry terms to avoid wrong entities (e.g., "Trusted Biz" vs "Trusted Business Solutions")
-        queries = [
-            # Most specific first - include industry context to avoid wrong entities
-            f'"{project}" digital identity SSI',  # Very specific
-            f'"{project}" self-sovereign identity',  # Industry term
-            f'{project} verifiable credentials blockchain',  # Technical terms
-            f'{project} official website',  # Natural language
-            f'{project} about us',  # Company info
-            f'{project} funding investment',  # Funding information
-            f'{project} partners partnerships',  # Partnership information
-            f'{project} github repository',  # Code repository
-        ]
+        # CRITICAL: When we have a known_website, prioritize it and add domain-specific searches
+        if known_website:
+            # Extract domain from known website for more specific searches
+            parsed = urlparse(known_website if known_website.startswith("http") else f"https://{known_website}")
+            known_domain = parsed.netloc.replace("www.", "")
+            # Use site: queries to prioritize the known website domain
+            queries = [
+                # Highest priority: search within the known website domain
+                f'site:{known_domain}',  # Site search for the known website
+                f'site:{known_domain} about mission',  # About/mission pages from known site
+                f'"{project}" site:{known_domain}',  # Project name within known domain
+                # Then broader searches with industry context
+                f'"{project}" digital identity SSI verifiable credentials',  # Combined: very specific + technical terms
+                f'{project} official website about mission',  # Combined: website + about + mission
+                f'{project} founded established launched announcement',  # Combined: dates info
+                f'{project} funding investors partners',  # Combined: funding + partnerships
+            ]
+        else:
+            queries = [
+                # Most specific first - include industry context to avoid wrong entities
+                f'"{project}" digital identity SSI verifiable credentials',  # Combined: very specific + technical terms
+                f'{project} official website about mission',  # Combined: website + about + mission
+                f'{project} founded established launched announcement',  # Combined: dates info
+                f'{project} funding investors partners',  # Combined: funding + partnerships
+                f'{project} github repository open source',  # Combined: code repository
+            ]
         
-        # Add domain-specific searches if we have a domain
+        # Add domain-specific searches if we have a domain (and no known_website already added site: queries)
         # These help find content within the official site
-        if domain_guess:
+        # Only add if we don't already have site: queries from known_website
+        if domain_guess and not known_website:
             queries.extend([
-                f'site:{domain_guess}',  # Site search first
-                f'site:{domain_guess} about',
-                f'site:{domain_guess} mission',
-                f'site:{domain_guess} company',
+                f'site:{domain_guess}',  # Site search - broad coverage
+                f'site:{domain_guess} about mission company',  # Combined: about/mission/company pages
             ])
         
         # Get more results per query to mimic human browsing behavior
-        # Distribute max_urls across queries, with min 20 and max 50 per query
-        results_per_query = max(20, min(max_urls // len(queries), 50))
+        # OPTIMIZED: Increase results per query since we have fewer queries now (faster overall)
+        # Distribute max_urls across queries, with min 20 and max 40 per query
+        results_per_query = max(20, min(max_urls // len(queries), 40))
         
         # Run SerpAPI searches
         serp_urls, debug_blob = _serpapi_search(queries, num=results_per_query, api_key=api_key)
@@ -474,9 +491,48 @@ def search_urls(project: str, cache_dir: Path | None = None, known_website: str 
 
     # 3) Merge with priority: SerpAPI URLs first (usually better quality), then seeds
     merged = _dedupe_keep_order(serp_urls + seed_urls)
+    
+    # 4) CRITICAL: If we have a known_website, prioritize URLs from that domain
+    # This ensures we get the correct entity (e.g., Spanish MÁS vs Muslim American Society)
+    if known_website:
+        parsed_known = urlparse(known_website if known_website.startswith("http") else f"https://{known_website}")
+        known_domain = parsed_known.netloc.lower().replace("www.", "")
+        
+        # Separate URLs: known domain vs others
+        known_domain_urls = []
+        other_urls = []
+        
+        for url in merged:
+            try:
+                parsed = urlparse(url)
+                url_domain = parsed.netloc.lower().replace("www.", "")
+                # Check if URL is from known domain
+                if known_domain in url_domain or url_domain in known_domain:
+                    known_domain_urls.append(url)
+                else:
+                    # Filter out clearly wrong domains if we have a known website
+                    # This helps avoid wrong entities (e.g., Muslim American Society when looking for Spanish MÁS)
+                    # Only filter if the domain is clearly a different entity
+                    should_skip = False
+                    # Example: If known_domain is masfan.rfef.es, skip muslimamericansociety.org, mas.org, etc.
+                    # But this is contextual - be conservative and only skip obvious mismatches
+                    if any(wrong in url_domain for wrong in ['muslimamericansociety', 'mas.org', 'masnewyork']):
+                        if known_domain not in ['muslimamericansociety', 'mas.org']:
+                            should_skip = True  # Skip wrong entity
+                    
+                    if not should_skip:
+                        other_urls.append(url)
+            except Exception:
+                # Keep URL if parsing fails
+                other_urls.append(url)
+        
+        # Prioritize: known domain URLs first, then others
+        merged = known_domain_urls + other_urls
+        log.info("[search] %s: Prioritized %d URLs from known domain '%s'", project, len(known_domain_urls), known_domain)
+    
     merged = _cap(merged, max_urls)
 
-    # 4) Sort by priority: official domains first, then others
+    # 5) Sort by priority: official domains first, then others
     def _url_priority(url: str) -> int:
         """
         Calculate URL priority (lower number = higher priority).

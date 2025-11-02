@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any, Dict, List
+import json
 
 import pandas as pd
 from openpyxl import load_workbook
@@ -38,19 +39,98 @@ def _norm(v: Any) -> str:
 def _load_input_df(input_xlsx: Path) -> pd.DataFrame:
     return pd.read_excel(input_xlsx, sheet_name=0, dtype=str).fillna("")
 
-def _build_ai_df(headers: List[str], recs: List[Dict[str, Any]]) -> pd.DataFrame:
+def _build_ai_df(headers: List[str], recs: List[Dict[str, Any]], all_headers: List[str] = None) -> pd.DataFrame:
+    """
+    Builds a DataFrame from the AI-extracted records.
+    Performs final cleanup of "Failed to disclose" from fields that don't allow it.
+    Also populates source columns from evidence URLs.
+    
+    Args:
+        headers: List of data definition columns (extracted data)
+        recs: List of extracted records (dictionaries)
+        all_headers: Optional full list of headers including source columns
+    """
+    # Fields that are allowed to have "Failed to disclose" per data definitions
+    allowed_failed_to_disclose_fields = {
+        "Uses/endorses ZKP",
+        "Has Exportable Credentials",
+        "Credential And Key Storage",
+        "Targets Holders",
+        "Targets Issuers",
+        "Targets Verifiers",
+    }
+    
+    # If all_headers provided, include source columns; otherwise just data columns
+    output_headers = all_headers if all_headers else headers
+    
     rows: List[Dict[str, Any]] = []
     for r in recs:
-        row = {h: _norm(r.get(h, "")) for h in headers}
-        # evidence: keep as JSON string for now
+        row = {}
+        
+        # Process data columns (extracted values)
+        for h in headers:
+            val = _norm(r.get(h, ""))
+            # Final safety check: Remove "Failed to disclose" from fields that don't allow it
+            if val.lower() == "failed to disclose" and h not in allowed_failed_to_disclose_fields:
+                val = ""  # Replace with empty string
+            row[h] = val
+        
+        # Populate source columns from evidence URLs
+        # Evidence format: [{"field": "Mission Statement", "source_url": "https://...", ...}, ...]
         ev = r.get("_evidence", [])
-        row["_evidence"] = "" if not ev else str(ev)
+        evidence_by_field = {}
+        if isinstance(ev, list):
+            for e in ev:
+                field_name = e.get("field", "")
+                source_url = e.get("source_url", "")
+                if field_name and source_url:
+                    # Map to "Live Source [Field Name]" column
+                    live_source_col = f"Live Source {field_name}"
+                    if live_source_col in output_headers:
+                        evidence_by_field[live_source_col] = source_url
+        
+        # Add source columns (populate from evidence or leave empty)
+        for h in output_headers:
+            if h not in row:
+                # This is a source column
+                if h in evidence_by_field:
+                    row[h] = evidence_by_field[h]
+                else:
+                    row[h] = ""
+        
+        # Store evidence as JSON string for debugging (can be hidden from view but kept for reference)
+        # _evidence contains detailed extraction metadata including source URLs for each field
+        row["_evidence"] = "" if not ev else json.dumps(ev, ensure_ascii=False)
         rows.append(row)
-    df = pd.DataFrame(rows, columns=headers + ["_evidence"])
+    
+    df = pd.DataFrame(rows, columns=output_headers + ["_evidence"])
     return df
 
-def _append_or_update_ai_sheet(output_xlsx: Path, headers: List[str], df_new: pd.DataFrame) -> pd.DataFrame:
+def _append_or_update_ai_sheet(output_xlsx: Path, headers: List[str], df_new: pd.DataFrame, input_xlsx: Path = None) -> pd.DataFrame:
+    """
+    Append or update AI sheet, preserving ID from input if present.
+    
+    Args:
+        output_xlsx: Path to output Excel file
+        headers: List of headers (may include ID, but ID won't be in df_new if excluded from extraction)
+        df_new: New DataFrame with AI-extracted data
+        input_xlsx: Optional input Excel path to copy ID values from
+    """
     nm_col = name_header(headers)
+    
+    # If ID is in headers but not in df_new (because we excluded it from extraction),
+    # copy ID values from input sheet
+    if input_xlsx and "ID" in headers and "ID" not in df_new.columns:
+        try:
+            df_input = pd.read_excel(input_xlsx, sheet_name=0, dtype=str).fillna("")
+            # Merge ID from input based on Product Name
+            name_col_input = name_header(df_input.columns.tolist())
+            if name_col_input in df_input.columns and name_col_input in df_new.columns:
+                id_map = dict(zip(df_input[name_col_input].str.strip(), df_input.get("ID", pd.Series([""] * len(df_input)))))
+                df_new["ID"] = df_new[name_col_input].str.strip().map(id_map).fillna("")
+        except Exception:
+            pass  # If copying fails, just continue without ID
+    
     if output_xlsx.exists():
         try:
             book = load_workbook(output_xlsx)
@@ -178,6 +258,12 @@ def _build_comparison(df_input: pd.DataFrame, df_ai: pd.DataFrame, headers: List
             # Skip source fields from comparison (they're not data columns)
             if "Live Source" in h or "Archived Source" in h:
                 continue
+            # Skip ID field - it's an internal identifier, not extracted data
+            if h.strip() == "ID":
+                continue
+            # Skip Logo field - it's a URL to an image file, not text content to extract
+            if h.strip() == "Logo":
+                continue
             
             client_val = _norm(rec.get(f"{h}_client", ""))
             ai_val = _norm(rec.get(f"{h}_ai", ""))
@@ -196,8 +282,31 @@ def _build_comparison(df_input: pd.DataFrame, df_ai: pd.DataFrame, headers: List
                 client_val = normalize_fd(client_val)
                 ai_val = normalize_fd(ai_val)
             
-            # URL normalization: remove trailing slashes and compare
+            # URL normalization: remove trailing slashes, paths, and www differences
             if "Website" in h or "URL" in h or "repository" in h.lower():
+                # Normalize both URLs to base domain for comparison
+                from urllib.parse import urlparse
+                try:
+                    # Parse and compare base URLs (scheme + netloc)
+                    client_parsed = urlparse(client_val if client_val.startswith('http') else f'https://{client_val}')
+                    ai_parsed = urlparse(ai_val if ai_val.startswith('http') else f'https://{ai_val}')
+                    # Compare: scheme + netloc (domain) - ignore www prefix and paths
+                    client_base = f"{client_parsed.scheme}://{client_parsed.netloc.replace('www.', '')}"
+                    ai_base = f"{ai_parsed.scheme}://{ai_parsed.netloc.replace('www.', '')}"
+                    # If base URLs match, consider it a match even if paths differ
+                    if client_base.lower() == ai_base.lower():
+                        match = True
+                        rows.append({
+                            "Project": project,
+                            "Field": h,
+                            "Client Value": client_val,
+                            "AI Value": ai_val,
+                            "Match?": "✅",
+                        })
+                        continue
+                except Exception:
+                    pass
+                # Fallback: simple rstrip for other URL fields
                 client_val = client_val.rstrip('/')
                 ai_val = ai_val.rstrip('/')
             
@@ -208,28 +317,48 @@ def _build_comparison(df_input: pd.DataFrame, df_ai: pd.DataFrame, headers: List
                 "Field": h,
                 "Client Value": client_val,
                 "AI Value": ai_val,
-                "Match?": "✓" if match else "",
+                            "Match?": "✅" if match else "❌",
             })
     return pd.DataFrame(rows, columns=["Project", "Field", "Client Value", "AI Value", "Match?"])
 
-def export_to_excel(input_xlsx: Path, headers: List[str], recs: List[Dict[str, Any]], output_xlsx: Path) -> None:
+def export_to_excel(input_xlsx: Path, headers: List[str], recs: List[Dict[str, Any]], output_xlsx: Path, all_headers: List[str] = None) -> None:
     """
     Export extraction results to Excel with Input, AI, and Comparison sheets.
     
     Creates/updates output.xlsx with:
     - Input sheet: Original data from input.xlsx
-    - AI sheet: AI-extracted data (updates existing if file exists)
-    - Comparison sheet: Side-by-side comparison of AI vs manual data
+    - AI sheet: AI-extracted data with source URLs (updates existing if file exists)
+    - Comparison sheet: Side-by-side comparison of AI vs manual data (data columns only)
     
     Args:
         input_xlsx: Path to input Excel file
-        headers: List of column headers
+        headers: List of data definition column headers (for extraction and comparison)
         recs: List of extracted records (one per project)
         output_xlsx: Path to output Excel file
+        all_headers: Optional full list of headers including source columns (for complete output structure)
     """
     df_input = _load_input_df(input_xlsx)
-    df_new_ai = _build_ai_df(headers, recs)
-    df_ai = _append_or_update_ai_sheet(output_xlsx, headers, df_new_ai)
+    # Build AI DataFrame with data columns and source columns populated from evidence
+    df_new_ai = _build_ai_df(headers, recs, all_headers=all_headers if all_headers else headers)
+    
+    # Copy ID and Logo from input to AI sheet if present (for reference, not extracted)
+    # These fields are not extracted by LLM but preserved from input.xlsx
+    if all_headers:
+        name_col = name_header(df_input.columns.tolist())
+        if name_col in df_new_ai.columns and name_col in df_input.columns:
+            # Copy ID from input (internal identifier)
+            if "ID" in all_headers and "ID" in df_input.columns:
+                id_map = dict(zip(df_input[name_col].str.strip(), df_input["ID"].str.strip()))
+                df_new_ai["ID"] = df_new_ai[name_col].str.strip().map(id_map).fillna("")
+            # Copy Logo from input (URL to image, not text to extract)
+            if "Logo" in all_headers and "Logo" in df_input.columns:
+                logo_map = dict(zip(df_input[name_col].str.strip(), df_input["Logo"].str.strip()))
+                df_new_ai["Logo"] = df_new_ai[name_col].str.strip().map(logo_map).fillna("")
+    
+    # Use all headers for AI sheet (includes sources), but only data columns for comparison
+    output_cols = all_headers if all_headers else headers
+    df_ai = _append_or_update_ai_sheet(output_xlsx, output_cols, df_new_ai, input_xlsx=input_xlsx)
+    # Comparison only uses data columns (sources are for reference/review only)
     df_cmp = _build_comparison(df_input, df_ai, headers)
 
     with pd.ExcelWriter(output_xlsx, engine="openpyxl") as xw:

@@ -110,7 +110,7 @@ def _extract_text(html: str) -> str:
         log.warning("[scrape] text extraction failed: %s", e)
         return ""
 
-def _fetch(url: str, timeout=15) -> Page:
+def _fetch(url: str, timeout=10) -> Page:  # Reduced timeout from 15s to 10s for faster processing
     """
     Fetch a single URL and extract its text content.
     

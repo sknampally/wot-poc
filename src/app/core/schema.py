@@ -154,29 +154,54 @@ def normalize_fd(v: Any) -> str:
 # Regex pattern to match 4-digit years (1900-2099)
 _year_re = re.compile(r"\b(19|20)\d{2}\b")
 
-def normalize_year(v: Any) -> str:
+def normalize_year(v: Any, min_year: int = 2000, max_year: int = None) -> str:
     """
-    Extract a 4-digit year (YYYY format) from a value.
+    Extract a 4-digit year (YYYY format) from a value with validation.
     
-    Looks for years in the range 1900-2099. Returns empty string
-    if no year found.
+    Looks for years in a reasonable range. By default filters out:
+    - Years before 2000 (likely unrelated company history)
+    - Years after current year (future dates - invalid)
     
     Args:
         v: Value to extract year from (any type)
+        min_year: Minimum valid year (default: 2000)
+        max_year: Maximum valid year (default: current year)
     
     Returns:
-        str: 4-digit year (YYYY) or empty string if not found
+        str: 4-digit year (YYYY) or empty string if not found or invalid
     
     Example:
         normalize_year("Launched in 2021") → "2021"
         normalize_year("2020-2023") → "2020" (first match)
+        normalize_year("1993") → "" (too old, filtered out)
+        normalize_year("2025") → "" (future date, filtered out if max_year=2024)
         normalize_year("No date") → ""
     """
+    from datetime import datetime
+    
+    if max_year is None:
+        max_year = datetime.now().year
+    
     s = str(v or "").strip()
     if not s:
         return ""
-    m = _year_re.search(s)
-    return m.group(0) if m else ""
+    
+    # Find all year matches in the string using finditer to get full match
+    import re as re_module
+    year_pattern = re_module.compile(r"\b(19|20)\d{2}\b")
+    matches = year_pattern.finditer(s)
+    
+    for match in matches:
+        year_str = match.group(0)  # Get full match (e.g., "2021")
+        try:
+            year_int = int(year_str)
+            # Validate year is within reasonable range (filter out old unrelated dates and future dates)
+            if min_year <= year_int <= max_year:
+                return year_str
+        except (ValueError, TypeError):
+            continue
+    # If no valid year in range, return empty string
+    return ""
 
 
 # -----------------------------

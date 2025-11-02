@@ -27,6 +27,9 @@ import_codebook_excel.py
 analyze_matches.py
 quick_analysis.py
 check_fields.py
+analyze_data_coverage.py
+analyze_mismatches.py
+analyze_field_details.py
 
 # Internal documentation/notes
 IMPROVEMENTS_SUMMARY.md

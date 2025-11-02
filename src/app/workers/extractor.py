@@ -109,6 +109,10 @@ def _make_prompt_payload(project: str, headers: List[str], context: str, codeboo
     # Build field-specific extraction hints from codebook definitions
     field_guidance_lines = []
     for h in headers:
+        # Skip Logo field - it's typically a URL to an image, not text to extract
+        # Logo should be handled separately or excluded from extraction
+        if h.strip().lower() == "logo":
+            continue
         # First check if we have a field definition in codebook
         if h in codebook.field_definitions:
             field_def = codebook.field_definitions[h]
@@ -129,25 +133,58 @@ def _make_prompt_payload(project: str, headers: List[str], context: str, codeboo
             
             # Add specific hints based on field name patterns
             h_lower = h.lower()
+            if "mission" in h_lower:
+                hint_parts.append("CRITICAL: Extract the EXACT mission statement word-for-word from official sources. The mission can be SHORT (1-5 words like 'Enforcing Information Security') or LONG (full sentences). Look for: sentences starting with action verbs ('To give', 'To enable', 'Our mission is'), SHORT taglines/headings describing purpose, or full paragraphs explaining WHY (not WHAT). PRIORITIZE: homepage hero/taglines, page titles/headers, 'About Us' first paragraph, 'Mission' pages. Extract EXACT text - do NOT paraphrase, expand, translate, or add context. If mission is short (e.g., 'Enforcing Information Security'), extract exactly that - do NOT extract a longer description. AVOID: product features, company histories, job descriptions, wrong language text, marketing paragraphs. The mission is often in page headers, taglines, or the first sentence of About Us.")
             if "funding" in h_lower:
-                hint_parts.append("Look for investment announcements, funding rounds, investor mentions, or venture capital backing.")
+                hint_parts.append("CRITICAL: Look for investment announcements, funding rounds, investor mentions, or venture capital backing. Search: press releases, news articles, 'About Us' pages, 'Investors' page, 'Backers' page, Crunchbase links, or funding announcement blog posts. Extract the full investor/backer organization name (e.g., 'Outlier Ventures Operations Ltd (Outlier Ventures)'). For Private Sector Funding, look for venture capital firms, companies, foundations, consortia, or corporate sponsors.")
             if "partner" in h_lower or "affiliated" in h_lower:
-                hint_parts.append("Look for partner/ecosystem pages, collaboration announcements, or integration mentions.")
+                hint_parts.append("CRITICAL: Look for partner/ecosystem pages, collaboration announcements, or integration mentions. Check: 'Partners' page, 'Ecosystem' page, 'Integrations' page, 'Collaborations' page, homepage mentions, About Us, or press releases. Extract the full partner/entity name (including organization name if mentioned, e.g., 'Dock Labs AG (Dock)').")
             if "repository" in h_lower and "code" in h_lower:
-                hint_parts.append("Look for GitHub, GitLab, or other code repository links. Check footer, developer pages, or documentation.")
+                hint_parts.append("CRITICAL: Look for GitHub, GitLab, or other code repository links. Check: footer links (often at bottom of pages), 'View Source' buttons, developer pages, documentation pages, README files, 'Contribute' sections, 'Open Source' pages, or 'Developer Resources'. The URL format is: https://github.com/[org]/[repo] or https://gitlab.com/[org]/[repo]. Also search page text for mentions like 'source code available at', 'repository', 'github.com/[org]'. Extract the FULL repository URL including https://.")
+            if "politically" in h_lower or "government" in h_lower:
+                hint_parts.append("CRITICAL: Look for ANY mention of government, state, or political entity involvement. Check: 'Government' section, 'Partners' page, press releases, 'Use Cases', case studies, news articles. Look for: 'government partnership', 'government project', 'used by government', 'government adoption', 'government entity', 'state-affiliated', 'endorsed by government', 'government funding', 'government contract', 'government case study', 'government use case', 'Citizens & Governments', 'government agency', 'government clients', 'government services', 'eIDAS', 'European regulations', 'government programmes'. If ANY government entity is mentioned as partner, user, client, involved in use cases, or supporting regulations like eIDAS, use 'True'. Only use 'False' if explicitly stated as private-sector only with no government involvement whatsoever.")
+            if "managing entity" in h_lower or ("managing" in h_lower and "entity" in h_lower):
+                hint_parts.append("CRITICAL: Look for the organization that manages/runs the project. Check: 'About Us' page (often mentions the foundation, company, or organization behind the project), footer (may show '© [Organization Name]'), legal pages, 'Who We Are' pages, company registration pages, or terms of service. Search for: 'Foundation', 'Limited', 'Inc', 'Corp', 'LLC', 'Ltd', company registration number, or legal entity name. Extract the FULL legal entity name if available (e.g., 'Cheqd Foundation Limited (Cheqd)' or just 'Cheqd Foundation Limited' if that's what's stated). If only a company name is mentioned without legal suffix, include it. If multiple names are given (legal name and common name), use format: 'Legal Name (Common Name)'.")
+            if "app store" in h_lower or "app" in h_lower and "store" in h_lower:
+                hint_parts.append("CRITICAL: Look for app store links or application download links. Check: 'Download' page, 'Get Started' page, footer links, product pages, or developer pages. Look for URLs like 'https://creds.xyz', 'https://apps.apple.com', 'https://play.google.com', or direct application URLs. Extract the full URL.")
+            if "exportable" in h_lower and "credential" in h_lower:
+                hint_parts.append("CRITICAL: Look for explicit mentions of credential export functionality. Search for: 'export credentials', 'download credentials', 'backup credentials', 'export wallet', or documentation about credential management. If the project mentions users can export/download their credentials, use 'True'. If it only mentions import but not export, use 'False'. If no information found, use 'Failed to disclose'.")
+            if "blockchain" in h_lower and ("registr" in h_lower or "data" in h_lower):
+                hint_parts.append("CRITICAL: Look for which blockchain or verifiable data registry the project uses. Check: technical documentation, architecture docs, 'Technology' page, developer docs, or whitepapers. Look for mentions of specific blockchains like 'Cheqd', 'Hyperledger Indy', 'Ethereum', 'Polygon', or registry names. Extract the specific blockchain/registry name.")
+            if "tech stack" in h_lower or "technology" in h_lower:
+                hint_parts.append("Extract detailed technology descriptions from technical documentation, developer pages, architecture docs, or product pages.")
             
-            # Add type-specific instructions
+            # Determine if this field allows "Failed to disclose"
+            # Only specific fields explicitly allow it per data definitions
+            allows_failed_to_disclose = False
+            extraction_guidance_lower = extraction_guidance.lower() if extraction_guidance else ""
+            if "failed to disclose" in extraction_guidance_lower or "Failed to disclose" in extraction_guidance:
+                allows_failed_to_disclose = True
+            
+            # Add type-specific instructions with proper constraints
             if field_type == "boolean" or field_type == "ternary":
+                # Boolean/ternary fields can use ternary_enums (which includes "Failed to disclose")
                 hint_parts.append(f"Must be one of: {codebook.ternary_enums}")
             elif field_type == "status":
                 hint_parts.append(f"Must be one of: {codebook.status_enums}")
+            elif field_type == "url":
+                # URL fields: use empty string if not found, NEVER "Failed to disclose"
+                if not allows_failed_to_disclose:
+                    hint_parts.append("CRITICAL: If URL not found, use empty string (\"\"). Do NOT use 'Failed to disclose'.")
             elif field_type == "year" or "date" in h.lower():
                 if "announcement" in h.lower():
-                    hint_parts.append("Extract the announcement year (YYYY format). Look for when the project was first announced in blog posts, press releases, or company descriptions. Extract the actual year mentioned.")
+                    hint_parts.append("CRITICAL: Extract the FIRST/EARLIEST announcement year (YYYY format, 4 digits only). Search ALL pages for: 'founded in [YEAR]', 'established in [YEAR]', 'announced in [YEAR]', 'company history', 'our story', 'project announcement', 'first introduced'. Check the oldest blog posts, press releases, or company timeline pages. FILTER OUT: dates before 2000 (likely unrelated company history), dates after current year (future dates), copyright years, page last-updated dates. Use the original project/company founding/announcement date. If you see 'founded 2021' and 'announced features in 2023', use 2021. If no valid project-related date found (only unrelated old dates), use empty string.")
                 elif "launch" in h.lower():
-                    hint_parts.append("Extract the launch year (YYYY format). Look for when the product first went live, beta launched, or first version released. Extract the actual year mentioned.")
+                    hint_parts.append("CRITICAL: Extract the FIRST/EARLIEST launch year (YYYY format, 4 digits only). Look for when the product FIRST became available. Search for: 'launched in [YEAR]', 'went live in [YEAR]', 'beta release [YEAR]', 'first version [YEAR]', 'general availability [YEAR]', 'public launch [YEAR]', 'product launch'. FILTER OUT: dates before 2000 (likely unrelated), dates after current year (future dates - invalid), copyright years, blog post publication dates. DO NOT use recent launch dates for new features - use the original product launch. If you see 'launched 2021' and 'new features launched 2023', use 2021. If no valid project launch date found, use empty string.")
                 else:
-                    hint_parts.append("Extract as 4-digit year (YYYY format). Look for first dates in blog posts, press releases, or company history.")
+                    hint_parts.append("Extract as 4-digit year (YYYY format). Look for the earliest date mentioned in company history, founding dates, or first announcements. FILTER OUT dates before 2000 or after current year.")
+                # Year fields: use empty string if not found, NEVER "Failed to disclose"
+                if not allows_failed_to_disclose:
+                    hint_parts.append("CRITICAL: If year not found or only invalid dates found (before 2000, after current year), use empty string (\"\"). Do NOT use 'Failed to disclose'.")
+            elif field_type == "text":
+                # Text fields: only allow "Failed to disclose" if explicitly stated in extraction_guidance
+                if not allows_failed_to_disclose:
+                    hint_parts.append("CRITICAL: If information not found, use empty string (\"\"). Do NOT use 'Failed to disclose' - this field does not allow it per data definitions.")
             
             if possible_values:
                 hint_parts.append(f"Valid values: {', '.join(possible_values)}")
@@ -180,14 +217,35 @@ def _make_prompt_payload(project: str, headers: List[str], context: str, codeboo
         "CRITICAL RULES:\n"
         "1. Set 'Product Name' exactly to: `{project_name}`\n"
         "2. Website field: Extract the main/official website URL from the context. Look for the homepage URL.\n"
-        "3. Mission Statement: Extract the complete mission statement from official sources. "
-        "Prioritize FAQ pages, About Us pages, company descriptions on homepage. "
-        "Look for phrases like 'our mission', 'we aim', 'our goal', 'to give', 'to provide'. "
-        "Extract the FULL statement, not partial sentences.\n"
+        "3. Mission Statement: Extract the COMPLETE mission statement from official sources. "
+        "CRITICAL EXTRACTION RULES:\n"
+        "   - The mission describes WHY the project exists (purpose), not WHAT it does (features)\n"
+        "   - Prioritize homepage hero sections, 'About Us', 'Mission', 'What We Do', FAQ pages\n"
+        "   - Look for sentences starting with action verbs: 'To give', 'To enable', 'To provide', 'Our mission is', 'We aim to', 'We give'\n"
+        "   - Extract the FULL sentence or paragraph that expresses the core purpose - NOT marketing descriptions\n"
+        "   - AVOID extracting: 'cheqd is a market-leading...', 'we provide...', 'our platform enables...' (these are WHAT, not WHY)\n"
+        "   - DO extract: 'To give people...', 'To enable individuals...', 'Our mission is to...' (these describe WHY)\n"
+        "   - If multiple mission statements exist, choose the one that best describes the underlying purpose/mission\n"
+        "   - Search ALL provided pages thoroughly, especially About Us and Mission pages\n"
         "4. Status: Use ONLY these values: {status_enums}. Look for words like 'launched', 'pilot', 'announced', 'live', 'production'.\n"
         "5. Ternary fields (yes/no questions): Must be one of: {ternary}. Look for explicit mentions.\n"
-        "6. Dates: Extract 4-digit years (YYYY format) from the context. Look for explicit year mentions "
-        "in blog posts, press releases, announcements, or company descriptions.\n"
+        "   CRITICAL FOR 'Politically Involved?' FIELD:\n"
+        "   - Scan the ENTIRE context for ANY mention of: 'government', 'state', 'public sector', 'Citizens & Governments', 'government agency', 'government clients', 'eIDAS', 'European regulations', 'government services', 'government programmes', 'national ID', 'public services'\n"
+        "   - If you find ANY of these terms OR see government listed as a use case/client/partner, set this field to 'True'\n"
+        "   - Examples that indicate 'True': 'Citizens & Governments' in use cases, 'Government agency' in partner list, mentions of eIDAS (European government regulation), 'government services' sector\n"
+        "   - Only use 'False' if you search thoroughly and find NO government-related mentions anywhere\n"
+        "6. Dates: Extract 4-digit years (YYYY format). CRITICAL RULES FOR DATES:\n"
+        "   - For 'Announcement Date': Search for the FIRST time the project was publicly announced\n"
+        "     Look for: 'founded in', 'established', 'announced', 'first introduced', company founding date\n"
+        "     Check the OLDEST blog posts, press releases, or company history pages\n"
+        "   - For 'Launch Date': Search for when the product FIRST became available to users\n"
+        "     Look for: 'launched', 'went live', 'beta release', 'first version', 'general availability (GA)', 'public release'\n"
+        "   - IMPORTANT: Do NOT use:\n"
+        "     * Recent blog post dates (these are when posts were published, not launch dates)\n"
+        "     * Feature announcement dates (these are when features were added, not the original launch)\n"
+        "     * Conference presentation dates\n"
+        "   - If you find multiple dates, use the EARLIEST one\n"
+        "   - If the date is explicitly stated (e.g., 'founded in 2021'), use that exact year\n"
         "7. Technology fields: Look for mentions of SSI, DLT, blockchain, verifiable credentials, ZKP (zero-knowledge proofs).\n"
         "8. When information is NOT found in the context after careful search, use 'Failed to disclose'.\n"
         "9. Every extracted value (non-empty field) MUST include an evidence entry in _evidence array with:\n"
@@ -208,7 +266,31 @@ def _make_prompt_payload(project: str, headers: List[str], context: str, codeboo
         "8. For code repositories: Look for 'GitHub', 'GitLab', 'code repository', or 'source code' mentions\n\n"
         "FIELD-SPECIFIC GUIDANCE:\n{field_guidance}\n"
         "IMPORTANT: Search the ENTIRE context thoroughly. Official website content is most reliable.\n"
-        "Extract real values when found. Use 'Failed to disclose' ONLY when information is genuinely absent.\n"
+        "CRITICAL VALUE CONSTRAINTS - READ CAREFULLY:\n"
+        "ONLY these 6 fields allow 'Failed to disclose' as a value:\n"
+        "  1. Uses/endorses ZKP\n"
+        "  2. Has Exportable Credentials\n"
+        "  3. Credential And Key Storage\n"
+        "  4. Targets Holders\n"
+        "  5. Targets Issuers\n"
+        "  6. Targets Verifiers\n"
+        "\n"
+        "FOR ALL OTHER FIELDS:\n"
+        "- If information is NOT found, use empty string (\"\") NOT 'Failed to disclose'\n"
+        "- Examples of fields that MUST use empty string if not found:\n"
+        "  * Logo, Mission Statement, Website, Public Code Repository → empty string if not found\n"
+        "  * Affiliated Entity / Partner, Private Sector Funding, Managing Entity → empty string if not found\n"
+        "  * App Store Link, Blockchains / Verifiable Data Registries → empty string if not found\n"
+        "  * ALL date fields, ALL URL fields, ALL text fields (except the 6 above) → empty string if not found\n"
+        "\n"
+        "FIELD TYPE CONSTRAINTS:\n"
+        "- Boolean/ternary fields: Must be one of {ternary} only (True, False, or Failed to disclose)\n"
+        "- Status fields: Must be one of {status_enums} only (Announced, Pilot, Launched, Discontinued)\n"
+        "- URL fields: Extract full URL or use empty string, NEVER 'Failed to disclose'\n"
+        "- Year/Date fields: Extract YYYY year or use empty string, NEVER 'Failed to disclose'\n"
+        "- Regular text fields: Extract actual text value or use empty string, NEVER 'Failed to disclose' (unless it's one of the 6 allowed fields)\n"
+        "\n"
+        "Extract real values when found. Follow the value constraints STRICTLY. Using 'Failed to disclose' in wrong fields will be rejected.\n"
     ).replace("{project_name}", project)\
      .replace("{status_enums}", str(codebook.status_enums))\
      .replace("{ternary}", str(codebook.ternary_enums))\
@@ -380,9 +462,31 @@ def extract_record(
 
     # ---- context packing: filter and prioritize high-quality content
     # Strategy: prioritize pages by information density and relevance
+    # CRITICAL: Filter out low-quality pages (job postings, careers, downloads, etc.)
     page_candidates: List[Tuple[float, str, str]] = []  # (priority, url, text)
     
+    # Keywords that indicate low-quality pages to filter out
+    exclude_keywords = [
+        'career', 'jobs', 'hiring', 'recruit', 'position', 'vacancy', 'apply now',
+        'download', '.pdf', '.zip', '.exe', '.dmg',
+        'cookie policy', 'privacy policy', 'terms of service', 'legal notice',
+        'sitemap', 'robots.txt'
+    ]
+    
     for p in pages:
+        url = (p.get("url") or "").lower()
+        text = (p.get("text") or "")[:200].lower()  # Check first 200 chars
+        
+        # Skip pages with exclude keywords in URL or text
+        should_skip = False
+        for keyword in exclude_keywords:
+            if keyword in url or keyword in text:
+                should_skip = True
+                log.debug("[extract] %s: Skipping page with '%s': %s", project, keyword, url[:80])
+                break
+        
+        if should_skip:
+            continue
         t = (p.get("text") or "").strip()
         u = (p.get("url") or "").strip()
         
@@ -401,13 +505,16 @@ def extract_record(
         priority = 5  # default
         
         # Highest priority: official homepage (no path or minimal)
+        # Homepage often has mission statement in hero section
         if u.count('/') <= 3:
             priority = 0
-        # Very high priority: FAQ pages (often contain mission statements)
-        elif '/faq' in u_lower:
-            priority = 0.5
-        # High priority: About/Company/Mission pages
+        
+        # Very high priority: About/Company/Mission pages (mission statements usually here)
         elif any(x in u_lower for x in ['/about', '/company', '/mission', '/who-we-are', '/what-we-do', '/our-story']):
+            priority = 0.5
+        
+        # High priority: FAQ pages (often contain mission statements and company info)
+        elif '/faq' in u_lower:
             priority = 1
         # High priority: Documentation (for tech fields)
         elif any(x in u_lower for x in ['/docs', '/documentation', '/developers', '/developer']):
@@ -419,16 +526,17 @@ def extract_record(
         else:
             priority = 4
         
-        # Boost priority for longer, more informative pages
+        # Boost priority for longer, more informative pages (but cap text length for speed)
         if len(t) > 2000:
             priority -= 0.5  # Slight boost for longer content
         
-        page_candidates.append((priority, u, t[:8000]))
+        # Use up to 6000 chars per page (reduced from 10000 for faster LLM processing)
+        page_candidates.append((priority, u, t[:6000]))
     
     # Sort by priority and select top pages
     page_candidates.sort(key=lambda x: x[0])
     snippets: List[str] = []
-    max_snippets = 20  # Increased to 20 for better coverage of all fields
+    max_snippets = 15  # Balanced for speed and quality (reduced from 20)
     for priority, u, t in page_candidates[:max_snippets]:
         snippets.append(f"[URL]{u}\n{t}")
     
@@ -450,7 +558,9 @@ def extract_record(
             "You extract structured information from web sources. "
             "You must ONLY use information explicitly found in the provided context. "
             "Be thorough - search all provided URLs and text. "
-            "Extract real values when found, use 'Failed to disclose' only when information is genuinely absent after careful search."
+            "CRITICAL: Only 6-7 specific fields allow 'Failed to disclose' as a value. "
+            "For all other fields, use empty string (\"\") if information is not found. "
+            "Follow the field-specific value constraints in the user prompt exactly."
         )},
         {"role": "user", "content": user_payload},
     ]
@@ -473,9 +583,34 @@ def extract_record(
         data = seeds
     else:
         log.info("[map] %s: parse ok via %s; keys=%s", project, how, list(obj.keys())[:12])
-        # Normalize to schema headers
+        
+        # Normalize to schema headers first
         llm_norm = coerce_to_headers(obj, headers, project_name=project) or {}
         seeds_norm = coerce_to_headers(seeds, headers, project_name=project) or {}
+        
+        # Post-process: Remove "Failed to disclose" from fields that don't allow it (after coercion to match exact headers)
+        # Only these 6 fields are allowed to have "Failed to disclose" per data definitions
+        allowed_failed_to_disclose_fields = {
+            "Uses/endorses ZKP",
+            "Has Exportable Credentials",
+            "Credential And Key Storage",
+            "Targets Holders",
+            "Targets Issuers",
+            "Targets Verifiers",
+        }
+        
+        # Clean up "Failed to disclose" from normalized headers
+        cleaned_count = 0
+        for h in headers:
+            val = str(llm_norm.get(h, "")).strip()
+            if val.lower() == "failed to disclose" and h not in allowed_failed_to_disclose_fields:
+                llm_norm[h] = ""  # Replace with empty string
+                cleaned_count += 1
+                log.debug("[extract] %s: Removed invalid 'Failed to disclose' from field '%s'", project, h)
+        
+        if cleaned_count > 0:
+            log.info("[extract] %s: Cleaned %d invalid 'Failed to disclose' values", project, cleaned_count)
+        
         # Merge: prefer LLM where seeds are empty
         data = {h: seeds_norm.get(h, "") for h in headers}
         mapped = 0
@@ -487,12 +622,48 @@ def extract_record(
                 mapped += 1
         log.info("[map] %s: mapped=%d", project, mapped)
 
-        # Evidence merge
+        # Evidence merge: start with existing evidence from seeds and LLM
         ev: List[Dict[str, Any]] = []
         if isinstance(seeds_norm.get("_evidence"), list):
             ev += seeds_norm["_evidence"]
         if isinstance(llm_norm.get("_evidence"), list):
             ev += llm_norm["_evidence"]
+        
+        # CRITICAL: Generate evidence entries for ALL extracted fields that don't have evidence yet
+        # This ensures source URLs are available for populating "Live Source [Field Name]" columns
+        # Use the first/highest priority page URL as the source for fields missing evidence
+        primary_source_url = ""
+        if pages:
+            # Get highest priority page URL (already sorted by priority)
+            page_candidates_sorted = sorted(page_candidates, key=lambda x: x[0])
+            if page_candidates_sorted:
+                primary_source_url = page_candidates_sorted[0][1]  # URL from highest priority page
+        
+        # Track which fields already have evidence
+        fields_with_evidence = {e.get("field", "") for e in ev if isinstance(e, dict)}
+        
+        # Add evidence for any extracted field that doesn't have it yet
+        for h in headers:
+            if h in fields_with_evidence:
+                continue  # Already has evidence
+            
+            val = str(data.get(h, "")).strip()
+            if val and val.lower() not in ("nan", "none", ""):
+                # Use primary source URL, or try to find a relevant page URL
+                source_url = primary_source_url
+                if not source_url and pages:
+                    source_url = pages[0].get("url", "")
+                
+                if source_url:
+                    ev.append({
+                        "field": h,
+                        "value": val,
+                        "source_url": source_url,
+                        "source_type": "webpage",
+                        "confidence": "high" if h == "Website" else "medium",
+                    })
+                    log.debug("[extract] %s: Added evidence for field '%s' from %s", project, h, source_url[:60])
+        
         data["_evidence"] = ev
 
     # --------- normalizations ----------

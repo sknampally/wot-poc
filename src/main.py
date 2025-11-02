@@ -104,8 +104,26 @@ def main():
     print(f"input={input_xlsx} output={output_xlsx}")
 
     # Load column headers from input.xlsx (these define what data to extract)
-    headers = load_headers(input_xlsx)
-    print(f"Loaded {len(headers)} columns from input.xlsx")
+    all_headers = load_headers(input_xlsx)
+    
+    # Separate data columns from source columns and internal/excluded identifiers
+    # Data Definition columns: actual data fields we extract (e.g., "Mission Statement", "Status")
+    # Source columns: URLs where we found the data (e.g., "Live Source Mission Statement", "Archived Source Mission Statement")
+    # Internal/excluded columns: ID (unique identifier), Logo (URL to image - not text to extract)
+    # Note: Logo is typically a URL to an image file, not content that can be extracted from web pages
+    data_columns = [h for h in all_headers if "Live Source" not in h and "Archived Source" not in h 
+                    and h.strip() != "ID" and h.strip() != "Logo"]
+    source_columns = [h for h in all_headers if "Live Source" in h or "Archived Source" in h]
+    internal_columns = [h for h in all_headers if h.strip() in ["ID", "Logo"]]
+    
+    # For extraction, we only use data columns (sources are populated from evidence URLs, ID and Logo are excluded)
+    headers = data_columns
+    
+    # Store all headers (including sources) for output Excel sheet structure
+    all_headers_list = all_headers
+    
+    print(f"Loaded {len(data_columns)} data columns, {len(source_columns)} source columns, and {len(internal_columns)} internal/excluded columns from input.xlsx")
+    print(f"Extracting data for {len(headers)} data definition columns only (ID and Logo excluded - internal/excluded fields).")
 
     # Parse project names from --targets argument
     targets = [t.strip() for t in args.targets.split(",") if t.strip()]
@@ -179,9 +197,10 @@ def main():
     # Creates Input, AI, and Comparison sheets
     export_to_excel(
         input_xlsx=input_xlsx,
-        headers=headers,
+        headers=headers,  # Data columns for extraction and comparison
         recs=all_rows,
         output_xlsx=output_xlsx,
+        all_headers=all_headers_list,  # Include source columns in AI sheet for review
     )
     print(f"Done → {output_xlsx}")
 
