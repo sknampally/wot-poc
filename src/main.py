@@ -277,6 +277,10 @@ def main():
             # Only try Perplexity if field has a query_template configured
             if field_name not in fields_config or "perplexity_query_template" not in fields_config[field_name]:
                 return False
+            # Check if use_perplexity is enabled (Y) for this field
+            use_perplexity = fields_config[field_name].get("use_perplexity", "N")
+            if use_perplexity != "Y":
+                return False
             val = rec.get(field_name, "").strip()
             # Try Perplexity if empty OR if LLM returned "Failed to disclose"
             return val == "" or val.lower() == "failed to disclose"

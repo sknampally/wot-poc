@@ -58,6 +58,7 @@
   "fields": {
     "Mission Statement": {
       "llm_hint": "CRITICAL: Extract the EXACT mission statement word-for-word in ENGLISH ONLY. The mission can be SHORT (1-5 words like 'Enforcing Information Security') or LONG (full sentences). Look for: sentences starting with action verbs ('To give', 'To enable', 'Our mission is', 'We aim'), SHORT taglines/headings describing purpose, or full paragraphs explaining WHY (not WHAT). PRIORITIZE: homepage hero/taglines, page titles/headers, 'About Us' first paragraph, 'Mission' pages. Extract EXACT English text - do NOT paraphrase, expand, TRANSLATE from other languages, or add context. If page is in another language, SKIP it and look for English version. If mission is short (e.g., 'Enforcing Information Security'), extract exactly that - do NOT extract a longer description. AVOID: product features, company histories, job descriptions, non-English text, marketing paragraphs. The mission is often in page headers, taglines, or the first sentence of About Us. CRITICAL: Return ONLY English text - if you see non-English content, find the English equivalent.",
+      "use_perplexity": "Y",
       "perplexity_query_template": "summarize the mission statement of {project}",
       "perplexity_system_prompt": "Extract and return ONLY the mission statement. No explanations, no formatting.",
       "perplexity_max_tokens": 300
@@ -65,6 +66,7 @@
     
     "Status": {
       "llm_hint": "Use ONLY these values: {status_enums}. Look for 'launched', 'live', 'in production', 'general availability (GA)', 'pilot', 'beta', 'announced'. Check homepage, product pages, announcements.",
+      "use_perplexity": "Y",
       "perplexity_query_template": "what is the current status of {project}? Status could be as one of the below 4: 1. Announced: It has been publicly stated that the project is going to be developed. 2. Pilot: currently in testing stages before being publicly launched more widely. 3. Launched: it is already active and working. 4. Discontinued: project was declared discontinued publicly.",
       "perplexity_system_prompt": "Extract and return ONLY the status name (Announced, Pilot, Launched, or Discontinued). No explanations.",
       "perplexity_max_tokens": 100
@@ -72,6 +74,7 @@
     
     "Logo": {
       "llm_hint": "CRITICAL: Look for the official logo image URL on the homepage, header, footer, or 'Brand'/'Media' kit pages. Check: <img> tags, CSS background images, or logo links in page HTML. Look for URLs like 'logo.png', 'logo.svg', brandfetch.com, or cdn. Extracted value should be the direct image URL (ending in .png, .svg, .jpg, etc.). If logo is referenced via brandfetch.com or similar services, extract that URL. Do NOT use placeholder images or generic logos.",
+      "use_perplexity": "Y",
       "perplexity_query_template": "give me the link to the logo of {project}",
       "perplexity_system_prompt": "Extract and return ONLY the exact value requested. No explanations, no formatting, no additional text. Just the value itself.",
       "perplexity_max_tokens": 100
@@ -79,6 +82,7 @@
     
     "Public Code Repository": {
       "llm_hint": "CRITICAL: Look for GitHub, GitLab, or other code repository links. Check: footer links (often at bottom of pages), 'View Source' buttons, developer pages, documentation pages, README files, 'Contribute' sections, 'Open Source' pages, or 'Developer Resources'. The URL format is: https://github.com/[org]/[repo] or https://gitlab.com/[org]/[repo]. Also search page text for mentions like 'source code available at', 'repository', 'github.com/[org]'. Extract the FULL repository URL including https://.",
+      "use_perplexity": "Y",
       "perplexity_query_template": "GitHub repository URL for {project}",
       "perplexity_system_prompt": "Extract and return ONLY the exact value requested. No explanations, no formatting, no additional text. Just the value itself.",
       "perplexity_max_tokens": 100
@@ -86,6 +90,7 @@
     
     "Project Launch Date": {
       "llm_hint": "CRITICAL: Extract the FIRST/EARLIEST launch year (YYYY format, 4 digits only). Look for when the product FIRST became available. Search for: 'launched in [YEAR]', 'went live in [YEAR]', 'beta release [YEAR]', 'first version [YEAR]', 'general availability [YEAR]', 'public launch [YEAR]', 'product launch'. FILTER OUT: dates before 2000 (likely unrelated), dates after current year (future dates - invalid), copyright years, blog post publication dates. DO NOT use recent launch dates for new features - use the original product launch. If you see 'launched 2021' and 'new features launched 2023', use 2021. If no valid project launch date found, use empty string.",
+      "use_perplexity": "Y",
       "perplexity_query_template": "launch year for {project}",
       "perplexity_system_prompt": "Extract and return ONLY the exact value requested. No explanations, no formatting, no additional text. Just the value itself.",
       "perplexity_max_tokens": 50
@@ -93,6 +98,7 @@
     
     "Project Announcement Date": {
       "llm_hint": "CRITICAL: Extract the FIRST/EARLIEST announcement year (YYYY format, 4 digits only). Search ALL pages for: 'founded in [YEAR]', 'established in [YEAR]', 'announced in [YEAR]', 'company history', 'our story', 'project announcement', 'first introduced'. Check the oldest blog posts, press releases, or company timeline pages. FILTER OUT: dates before 2000 (likely unrelated company history), dates after current year (future dates), copyright years, page last-updated dates. Use the original project/company founding/announcement date. If you see 'founded 2021' and 'announced features in 2023', use 2021. If no valid project-related date found (only unrelated old dates), use empty string.",
+      "use_perplexity": "Y",
       "perplexity_query_template": "when was {project} first announced or founded? give me the earliest year",
       "perplexity_system_prompt": "Extract and return ONLY the exact value requested. No explanations, no formatting, no additional text. Just the value itself.",
       "perplexity_max_tokens": 50
@@ -100,6 +106,7 @@
     
     "Tech Stack Descriptions": {
       "llm_hint": "Extract detailed technology descriptions from technical documentation, developer pages, architecture docs, or product pages.",
+      "use_perplexity": "Y",
       "perplexity_query_template": "technology stack for {project}",
       "perplexity_system_prompt": "Extract and return ONLY the exact value requested. No explanations, no formatting, no additional text. Just the value itself.",
       "perplexity_max_tokens": 200
@@ -107,6 +114,7 @@
     
     "Uses/endorses ZKP": {
       "llm_hint": "CRITICAL: Look for mentions of zero-knowledge proofs (ZKP). Search for: 'zero-knowledge proofs', 'ZKP', 'zk-SNARKs', 'zk-STARKs', 'privacy-preserving proofs', 'anonymous credentials'. Check technical documentation, whitepapers, architecture docs, or feature pages. If project uses or endorses ZKP technology, use 'True'. If it does not use ZKP, use 'False'. If no information found about ZKP usage, use 'Failed to disclose'.",
+      "use_perplexity": "Y",
       "perplexity_query_template": "Does {project} use zero-knowledge proofs (ZKP) or endorses it? Answer must be one of: True, False, or Failed to disclose. In case there is no explicit information about the project actively using ZKP or having an opinion about it, 'Failed to disclose' will be the response.",
       "perplexity_system_prompt": "Extract and return ONLY the answer: True, False, or Failed to disclose. No explanations.",
       "perplexity_max_tokens": 100
@@ -114,6 +122,7 @@
     
     "Person of Interest": {
       "llm_hint": "Look for founders, CEOs, or key leaders. Check: 'About Us', 'Team', 'Leadership', 'Founders' pages, press releases, or company announcements.",
+      "use_perplexity": "Y",
       "perplexity_query_template": "who are the founders or key leaders of {project}? list their names",
       "perplexity_system_prompt": "Extract and return ONLY the names of founders/key leaders. List names separated by commas.",
       "perplexity_max_tokens": 150
@@ -121,6 +130,7 @@
     
     "Person of Interest Work Title": {
       "llm_hint": "Look for job titles and roles of founders/key leaders. Check: 'About Us', 'Team', 'Leadership', 'Founders' pages, press releases.",
+      "use_perplexity": "Y",
       "perplexity_query_template": "what are the job titles or roles of the founders or key leaders of {project}?",
       "perplexity_system_prompt": "Extract and return ONLY the job titles. List titles separated by commas.",
       "perplexity_max_tokens": 150
@@ -128,6 +138,7 @@
     
     "Has Exportable Credentials": {
       "llm_hint": "CRITICAL: Look for explicit mentions of credential export functionality. Search for: 'export credentials', 'download credentials', 'backup credentials', 'export wallet', or documentation about credential management. If the project mentions users can export/download their credentials, use 'True'. If it only mentions import but not export, use 'False'. If no information found, use 'Failed to disclose'.",
+      "use_perplexity": "Y",
       "perplexity_query_template": "Does {project} explicitly mention that holders can export their credentials? Answer must be one of: True, False, or Failed to disclose. If the project mentions it can only import and doesn't specify they can be exported, use 'False'. If no information about import/export is identified, use 'Failed to disclose'.",
       "perplexity_system_prompt": "Extract and return ONLY the answer: True, False, or Failed to disclose. No explanations.",
       "perplexity_max_tokens": 100
@@ -135,6 +146,7 @@
     
     "Credential And Key Storage": {
       "llm_hint": "CRITICAL: Look for information about where credentials and keys are stored. Search for: 'user-controlled keys', 'exclusive custody', 'wallet storage', 'HSM', 'cloud storage', 'user custody', 'key management'. If project mentions user has exclusive custody of credentials/keys, use 'True'. If it mentions custodial or third-party storage, use 'False'. If no information found, use 'Failed to disclose'.",
+      "use_perplexity": "Y",
       "perplexity_query_template": "Does {project} explicitly mention that holders have exclusive custody of their credentials and keys? Answer must be one of: True, False, or Failed to disclose. 'Failed to disclose' will be used whenever there is no information about the storage of credentials and keys at all.",
       "perplexity_system_prompt": "Extract and return ONLY the answer: True, False, or Failed to disclose. No explanations.",
       "perplexity_max_tokens": 100
@@ -142,6 +154,7 @@
     
     "Targets Holders": {
       "llm_hint": "CRITICAL: Look for features or products for holders/users. Search for: 'wallet', 'holder', 'user wallet', 'mobile wallet', 'digital wallet', 'credential wallet', 'identity wallet', 'hold credentials', 'store credentials'. Check product pages, features, or developer documentation. If project offers wallet or holder features, use 'True'. If no holder features mentioned, use 'False'. If unclear whether project targets holders, use 'Failed to disclose'.",
+      "use_perplexity": "Y",
       "perplexity_query_template": "Does {project} have features for use by holders, such as wallets? Answer must be one of: True, False, or Failed to disclose. 'Failed to disclose' will be selected if there is no clear indication whether the project is targeted toward holders or not.",
       "perplexity_system_prompt": "Extract and return ONLY the answer: True, False, or Failed to disclose. No explanations.",
       "perplexity_max_tokens": 100
@@ -149,6 +162,7 @@
     
     "Targets Issuers": {
       "llm_hint": "CRITICAL: Look for features or products for issuers. Search for: 'issuer', 'issue credentials', 'credential issuance', 'issuer tools', 'issuer platform', 'credential creation'. Check product pages, features, or developer documentation. If project offers issuer/credential creation features, use 'True'. If no issuer features mentioned, use 'False'. If unclear whether project targets issuers, use 'Failed to disclose'.",
+      "use_perplexity": "Y",
       "perplexity_query_template": "Does {project} have features for use by issuers, such as credential issuance solutions? Answer must be one of: True, False, or Failed to disclose. 'Failed to disclose' will be selected if there is no clear indication whether the project is targeted toward issuers or not.",
       "perplexity_system_prompt": "Extract and return ONLY the answer: True, False, or Failed to disclose. No explanations.",
       "perplexity_max_tokens": 100
@@ -156,29 +170,50 @@
     
     "Targets Verifiers": {
       "llm_hint": "CRITICAL: Look for features or products for verifiers. Search for: 'verifier', 'verify credentials', 'QR reader', 'scan', 'verification tools', 'credential verification'. Check product pages, features, or developer documentation. If project offers verification features, use 'True'. If no verifier features mentioned, use 'False'. If unclear whether project targets verifiers, use 'Failed to disclose'.",
+      "use_perplexity": "Y",
       "perplexity_query_template": "Does {project} have features for use by verifiers, such as QR readers? Answer must be one of: True, False, or Failed to disclose. 'Failed to disclose' will be selected if there is no clear indication whether the project is targeted toward verifiers or not.",
       "perplexity_system_prompt": "Extract and return ONLY the answer: True, False, or Failed to disclose. No explanations.",
       "perplexity_max_tokens": 100
     },
     
     "Politically Involved?": {
-      "llm_hint": "CRITICAL: Look for ANY mention of government, state, or political entity involvement. Check: 'Government' section, 'Partners' page, press releases, 'Use Cases', case studies, news articles. Look for: 'government partnership', 'government project', 'used by government', 'government adoption', 'government entity', 'state-affiliated', 'endorsed by government', 'government funding', 'government contract', 'government case study', 'government use case', 'Citizens & Governments', 'government agency', 'government clients', 'government services', 'eIDAS', 'European regulations', 'government programmes'. If ANY government entity is mentioned as partner, user, client, involved in use cases, or supporting regulations like eIDAS, use 'True'. Only use 'False' if explicitly stated as private-sector only with no government involvement whatsoever."
+      "llm_hint": "CRITICAL: Look for ANY mention of government, state, or political entity involvement. Check: 'Government' section, 'Partners' page, press releases, 'Use Cases', case studies, news articles. Look for: 'government partnership', 'government project', 'used by government', 'government adoption', 'government entity', 'state-affiliated', 'endorsed by government', 'government funding', 'government contract', 'government case study', 'government use case', 'Citizens & Governments', 'government agency', 'government clients', 'government services', 'eIDAS', 'European regulations', 'government programmes'. If ANY government entity is mentioned as partner, user, client, involved in use cases, or supporting regulations like eIDAS, use 'True'. Only use 'False' if explicitly stated as private-sector only with no government involvement whatsoever.",
+      "use_perplexity": "Y",
+      "perplexity_query_template": "Does {project} have any government or state-affiliated entity involvement through endorsement, partnerships, funding, or adoption? Answer: True or False",
+      "perplexity_system_prompt": "Extract and return ONLY the answer: True or False. No explanations.",
+      "perplexity_max_tokens": 100
     },
     
     "Private Sector Funding": {
-      "llm_hint": "CRITICAL: Look for investment announcements, funding rounds, investor mentions, or venture capital backing. Search: press releases, news articles, 'About Us' pages, 'Investors' page, 'Backers' page, Crunchbase links, or funding announcement blog posts. Extract the full investor/backer organization name (e.g., 'Outlier Ventures Operations Ltd (Outlier Ventures)'). For Private Sector Funding, look for venture capital firms, companies, foundations, consortia, or corporate sponsors."
+      "llm_hint": "CRITICAL: Look for investment announcements, funding rounds, investor mentions, or venture capital backing. Search: press releases, news articles, 'About Us' pages, 'Investors' page, 'Backers' page, Crunchbase links, or funding announcement blog posts. Extract the full investor/backer organization name (e.g., 'Outlier Ventures Operations Ltd (Outlier Ventures)'). For Private Sector Funding, look for venture capital firms, companies, foundations, consortia, or corporate sponsors.",
+      "use_perplexity": "Y",
+      "perplexity_query_template": "Who are the private sector investors, venture capital firms, or corporate sponsors of {project}? List organization names.",
+      "perplexity_system_prompt": "Extract and return ONLY the organization names separated by commas. No explanations.",
+      "perplexity_max_tokens": 200
     },
     
     "Affiliated Entity / Partner": {
-      "llm_hint": "CRITICAL: Look for partner/ecosystem pages, collaboration announcements, or integration mentions. Check: 'Partners' page, 'Ecosystem' page, 'Integrations' page, 'Collaborations' page, homepage mentions, About Us, or press releases. Extract the full partner/entity name (including organization name if mentioned, e.g., 'Dock Labs AG (Dock)')."
+      "llm_hint": "CRITICAL: Look for partner/ecosystem pages, collaboration announcements, or integration mentions. Check: 'Partners' page, 'Ecosystem' page, 'Integrations' page, 'Collaborations' page, homepage mentions, About Us, or press releases. Extract the full partner/entity name (including organization name if mentioned, e.g., 'Dock Labs AG (Dock)').",
+      "use_perplexity": "Y",
+      "perplexity_query_template": "Who are the private partners or affiliated entities of {project}? List organization names.",
+      "perplexity_system_prompt": "Extract and return ONLY the organization names separated by commas. No explanations.",
+      "perplexity_max_tokens": 200
     },
     
     "Managing Entity": {
-      "llm_hint": "CRITICAL: Look for the organization that manages/runs the project. Check: 'About Us' page (often mentions the foundation, company, or organization behind the project), footer (may show '© [Organization Name]'), legal pages, 'Who We Are' pages, company registration pages, or terms of service. Search for: 'Foundation', 'Limited', 'Inc', 'Corp', 'LLC', 'Ltd', company registration number, or legal entity name. Extract the FULL legal entity name if available (e.g., 'Cheqd Foundation Limited (Cheqd)' or just 'Cheqd Foundation Limited' if that's what's stated). If only a company name is mentioned without legal suffix, include it. If multiple names are given (legal name and common name), use format: 'Legal Name (Common Name)'."
+      "llm_hint": "CRITICAL: Look for the organization that manages/runs the project. Check: 'About Us' page (often mentions the foundation, company, or organization behind the project), footer (may show '© [Organization Name]'), legal pages, 'Who We Are' pages, company registration pages, or terms of service. Search for: 'Foundation', 'Limited', 'Inc', 'Corp', 'LLC', 'Ltd', company registration number, or legal entity name. Extract the FULL legal entity name if available (e.g., 'Cheqd Foundation Limited (Cheqd)' or just 'Cheqd Foundation Limited' if that's what's stated). If only a company name is mentioned without legal suffix, include it. If multiple names are given (legal name and common name), use format: 'Legal Name (Common Name)'.",
+      "use_perplexity": "Y",
+      "perplexity_query_template": "What is the legal entity or company that manages and operates {project}?",
+      "perplexity_system_prompt": "Extract and return ONLY the legal entity name. No explanations.",
+      "perplexity_max_tokens": 150
     },
     
     "App Store Link": {
-      "llm_hint": "CRITICAL: Look for app store links or application download links. Check: 'Download' page, 'Get Started' page, footer links, product pages, or developer pages. Look for URLs like 'https://creds.xyz', 'https://apps.apple.com', 'https://play.google.com', or direct application URLs. Extract the full URL."
+      "llm_hint": "CRITICAL: Look for app store links or application download links. Check: 'Download' page, 'Get Started' page, footer links, product pages, or developer pages. Look for URLs like 'https://creds.xyz', 'https://apps.apple.com', 'https://play.google.com', or direct application URLs. Extract the full URL.",
+      "use_perplexity": "Y",
+      "perplexity_query_template": "App store or download link for {project} mobile app or desktop application",
+      "perplexity_system_prompt": "Extract and return ONLY the URL. No explanations.",
+      "perplexity_max_tokens": 100
     }
   }
 }
