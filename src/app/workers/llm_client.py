@@ -1,9 +1,10 @@
 """
-LLM (Large Language Model) client for OpenAI and Ollama.
+LLM (Large Language Model) client for OpenAI, Ollama, and Perplexity.
 
 This module provides a unified interface for calling LLM APIs:
 - OpenAI: Official OpenAI API (requires OPENAI_API_KEY)
 - Ollama: Local LLM server (requires running ollama serve)
+- Perplexity: Web-grounded AI with real-time search (requires PERPLEXITY_API_KEY)
 
 The chat_json() function handles retries automatically for transient failures.
 
@@ -32,6 +33,8 @@ try:
     from openai import OpenAI
 except Exception:
     OpenAI = None  # type: ignore
+
+# Perplexity: Uses OpenAI-compatible API (no separate SDK needed)
 
 # Optional: minimal Ollama fallback
 import json
@@ -135,6 +138,49 @@ def _ollama_chat(messages: List[Dict[str, str]], model: str, max_tokens: int, te
     return json.dumps(data)[:8000]
 
 
+def _perplexity_chat(messages: List[Dict[str, str]], model: str, max_tokens: int, temperature: float = 0) -> str:
+    """
+    Call Perplexity Chat Completions API.
+    
+    Uses OpenAI-compatible API (base_url = https://api.perplexity.ai).
+    Requires PERPLEXITY_API_KEY in environment.
+    Provides web-grounded responses with real-time search capabilities.
+    
+    Args:
+        messages: List of message dicts with 'role' and 'content' keys
+        model: Model name (e.g., 'sonar', 'sonar-pro', 'sonar-reasoning')
+        max_tokens: Maximum tokens in response
+        temperature: Sampling temperature
+    
+    Returns:
+        str: The generated text response
+    
+    Raises:
+        RuntimeError: If OpenAI package not installed or API key missing
+    """
+    if OpenAI is None:
+        raise RuntimeError("openai package not available. Install 'openai>=1.12.0'.")
+    
+    api_key = os.getenv("PERPLEXITY_API_KEY", "").strip()
+    if not api_key:
+        raise RuntimeError("PERPLEXITY_API_KEY is not set")
+    
+    # Initialize OpenAI client with Perplexity's base URL
+    client = OpenAI(api_key=api_key, base_url="https://api.perplexity.ai")
+    
+    # Make API call
+    resp = client.chat.completions.create(
+        model=model,
+        messages=messages,
+        temperature=temperature,
+        max_tokens=max_tokens,
+    )
+    
+    # Extract response text
+    txt = (resp.choices[0].message.content or "").strip()
+    return txt
+
+
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=8))
 def chat_json(
     *,
@@ -159,8 +205,8 @@ def chat_json(
         messages: Optional full messages list (if provided, system/user ignored)
         system: Optional system message (role: "system")
         user: Optional user message (role: "user")
-        provider: LLM provider - 'openai' or 'ollama'
-        model: Model name (e.g., 'gpt-4o-mini', 'llama3.1')
+        provider: LLM provider - 'openai', 'ollama', or 'perplexity'
+        model: Model name (e.g., 'gpt-4o-mini', 'llama3.1', 'sonar')
         max_tokens: Maximum tokens in response
         temperature: Sampling temperature (0 = deterministic)
     
@@ -208,5 +254,7 @@ def chat_json(
         return _openai_chat(msgs, model=model, max_tokens=max_tokens, temperature=temperature)
     elif prov == "ollama":
         return _ollama_chat(msgs, model=model, max_tokens=max_tokens, temperature=temperature)
+    elif prov == "perplexity":
+        return _perplexity_chat(msgs, model=model, max_tokens=max_tokens, temperature=temperature)
     else:
         raise ValueError(f"Unsupported provider: {provider}")

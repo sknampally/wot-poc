@@ -4,7 +4,7 @@ Main entry point for the Web of Trust POC (Proof of Concept).
 This script orchestrates the complete data extraction pipeline:
 1. Search: Uses SerpAPI to find relevant URLs for each project
 2. Scrape: Fetches and extracts text content from those URLs
-3. Extract: Uses LLM (OpenAI or Ollama) to extract structured data
+3. Extract: Uses LLM (OpenAI, Ollama, or Perplexity) to extract structured data
 4. Export: Writes results to Excel with comparison against manual data
 
 Usage:
@@ -13,12 +13,14 @@ Usage:
 Environment variables (via .env file):
     - SERPAPI_API_KEY: Required for web search
     - OPENAI_API_KEY: Required for LLM extraction (if using OpenAI)
+    - PERPLEXITY_API_KEY: Required for Perplexity fallback
     - LLM_PROVIDER: 'openai' or 'ollama' (default: 'openai')
     - LLM_MODEL: Model name (default: 'gpt-4o-mini')
     - LLM_MAX_TOKENS: Maximum output tokens (default: 4000)
 """
 import argparse
 import json
+import logging
 import os
 from pathlib import Path
 from dotenv import load_dotenv
@@ -27,8 +29,11 @@ from app.utils.logger import setup_logging
 from app.workers.searcher import search_urls
 from app.workers.scraper import scrape_urls
 from app.workers.extractor import extract_record
+from app.workers.llm_client import chat_json
 from app.core.export_excel import export_to_excel
 from app.core.schema import load_headers
+
+log = logging.getLogger(__name__)
 
 # Directory paths relative to project root
 DATA_DIR = Path(__file__).resolve().parents[1] / "data"
@@ -218,12 +223,57 @@ def main():
             known_website=known_website,  # Helps identify official website
         )
         
-        # SKIPPED: Second-pass targeted SerpAPI search to reduce costs
-        # We rely on the initial comprehensive search and LLM's ability to extract from available context
-        # If technical fields are missing, it's likely they're not publicly available
-        
         # Add Product Name to the record (since extraction_needed=N in codebook)
         rec["Product Name"] = project
+        
+        # Step 4: Perplexity fallback for empty key fields
+        # Use Perplexity's web search for fields that the primary LLM couldn't extract
+        missing_key_fields = []
+        if rec.get("Mission Statement", "").strip() == "":
+            missing_key_fields.append("Mission Statement")
+        if rec.get("Logo", "").strip() == "":
+            missing_key_fields.append("Logo")
+        
+        if missing_key_fields and os.getenv("PERPLEXITY_API_KEY"):
+            log.info("[perplexity] Fallback for %s: %d missing fields", project, len(missing_key_fields))
+            print(f"  → Trying Perplexity for {len(missing_key_fields)} missing fields...")
+            
+            try:
+                for field in missing_key_fields:
+                    # Query Perplexity to search the web for this specific field
+                    if field == "Mission Statement":
+                        query = f"What is the mission statement of {project}?"
+                        if known_website:
+                            query += f" from {known_website}"
+                        max_tokens = 1000  # More tokens for mission statements
+                    elif field == "Logo":
+                        query = f"What is the exact URL of the official logo image for {project}?"
+                        if known_website:
+                            query += f" from {known_website}"
+                        max_tokens = 100  # Logo URLs are short
+                    else:
+                        query = f"Extract the {field.lower()} for {project}"
+                        if known_website:
+                            query += f" from {known_website}"
+                        max_tokens = 500
+                    
+                    perplexity_response = chat_json(
+                        system="You are a precise data extraction assistant. Provide only the exact information requested, without elaboration or explanation.",
+                        user=query,
+                        provider="perplexity",
+                        model="sonar",
+                        max_tokens=max_tokens,
+                    )
+                    
+                    if perplexity_response.strip():
+                        rec[field] = perplexity_response.strip()
+                        log.info("[perplexity] %s: Extracted %s", project, field)
+                        print(f"    ✓ Found {field}")
+                    else:
+                        log.warning("[perplexity] %s: No response for %s", project, field)
+            except Exception as e:
+                log.error("[perplexity] %s: Error during fallback: %s", project, e, exc_info=True)
+                print(f"    ⚠ Perplexity fallback failed: {e}")
         
         all_rows.append(rec)
 

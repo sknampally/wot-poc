@@ -13,5 +13,8 @@ lxml==5.3.0
 # --- Local LLM (Ollama) ---
 ollama==0.3.3
 
+# --- Perplexity AI ---
+# Note: Perplexity uses OpenAI-compatible API, no separate SDK needed
+
 # --- CLI / UX ---
 tqdm==4.66.5

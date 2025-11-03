@@ -224,7 +224,9 @@ def _is_text_match(client_val: str, ai_val: str, field_name: str, threshold: flo
             word_overlap = len(client_words & ai_words) / len(client_words | ai_words) if len(client_words | ai_words) > 0 else 0
             significant_overlap = word_overlap * 1.3  # Boost significant word overlap
             final_score = max(similarity, significant_overlap)
-            return final_score >= threshold
+            # Lower threshold for mission statements to account for paraphrasing
+            effective_threshold = 0.3 if "mission" in field_name.lower() else threshold
+            return final_score >= effective_threshold
     
     return False
 
