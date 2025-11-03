@@ -26,6 +26,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 from app.utils.logger import setup_logging
+from app.utils.accuracy import print_accuracy_report
 from app.workers.searcher import search_urls
 from app.workers.scraper import scrape_urls
 from app.workers.extractor import extract_record
@@ -57,7 +58,7 @@ def parse_args():
     p.add_argument(
         "--targets", 
         type=str, 
-        required=True, 
+        required=False,  # Not required if --check-accuracy is used
         help='Comma or space separated project names, e.g. "cheqd, Trusted Biz" or "all"'
     )
     p.add_argument(
@@ -77,6 +78,11 @@ def parse_args():
         type=int, 
         default=int(os.getenv("LLM_MAX_TOKENS", "4000")),
         help="Maximum tokens for LLM response"
+    )
+    p.add_argument(
+        "--check-accuracy",
+        action="store_true",
+        help="Run accuracy check on existing output.xlsx and exit"
     )
     return p.parse_args()
 
@@ -102,6 +108,17 @@ def main():
 
     # Parse command-line arguments
     args = parse_args()
+    
+    # Handle --check-accuracy flag (quick accuracy check without running extraction)
+    if args.check_accuracy:
+        output_xlsx = DATA_DIR / "output.xlsx"
+        print_accuracy_report(output_xlsx)
+        return
+    
+    # Validate targets are provided for extraction
+    if not args.targets:
+        print("Error: --targets is required for extraction. Use --check-accuracy to run accuracy check only.")
+        sys.exit(1)
 
     # Define input/output Excel files
     input_xlsx = DATA_DIR / "input.xlsx"  # Source data with project names
@@ -374,6 +391,15 @@ def main():
         all_headers=all_headers_list,  # Include source columns in AI sheet for review
     )
     print(f"Done → {output_xlsx}")
+    
+    # Step 5: Optional accuracy check (controlled by .env parameter)
+    auto_check_accuracy = os.getenv("AUTO_CHECK_ACCURACY", "false").lower() == "true"
+    if auto_check_accuracy:
+        log.info("[main] Running automatic accuracy check...")
+        print("\n" + "=" * 70)
+        print("AUTOMATIC ACCURACY CHECK")
+        print("=" * 70)
+        print_accuracy_report(output_xlsx)
 
 if __name__ == "__main__":
     main()

@@ -65,6 +65,9 @@ LLM_MAX_TOKENS=4000                            # Maximum output tokens
 # ====== Search Configuration ======
 MAX_URLS_PER_PROJECT=50                        # Maximum URLs to collect per project
 
+# ====== Auto-Accuracy Check ======
+AUTO_CHECK_ACCURACY=false                      # Set to 'true' to auto-run accuracy check after extraction
+
 # ====== Optional: Ollama (local LLM) ======
 OLLAMA_HOST=http://localhost:11434
 OLLAMA_MODEL=llama3.1
@@ -110,11 +113,15 @@ python src/main.py --targets all
 - `--provider`: `openai` (default) or `ollama`
 - `--model`: Model name (default: `gpt-4o-mini`)
 - `--max-output-tokens`: Max tokens for LLM response (default: 4000)
+- `--check-accuracy`: Run accuracy check only (skip extraction)
 
-### Step 4  Check results
+### Step 4  Check accuracy
 ```bash
-# Check accuracy (for projects with manual data)
-python check_accuracy.py
+# Method 1: Quick accuracy check
+python src/main.py --check-accuracy
+
+# Method 2: Auto-run after extraction (set AUTO_CHECK_ACCURACY=true in .env)
+# Accuracy check automatically runs after each extraction
 ```
 
 Open `data/output.xlsx` to see:
