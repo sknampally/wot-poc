@@ -61,7 +61,7 @@
   ],
   
   "field_hints": {
-    "mission": "CRITICAL: Extract the EXACT mission statement word-for-word from official sources. The mission can be SHORT (1-5 words like 'Enforcing Information Security') or LONG (full sentences). Look for: sentences starting with action verbs ('To give', 'To enable', 'Our mission is'), SHORT taglines/headings describing purpose, or full paragraphs explaining WHY (not WHAT). PRIORITIZE: homepage hero/taglines, page titles/headers, 'About Us' first paragraph, 'Mission' pages. Extract EXACT text - do NOT paraphrase, expand, translate, or add context. If mission is short (e.g., 'Enforcing Information Security'), extract exactly that - do NOT extract a longer description. AVOID: product features, company histories, job descriptions, wrong language text, marketing paragraphs. The mission is often in page headers, taglines, or the first sentence of About Us.",
+    "mission": "CRITICAL: Extract the EXACT mission statement word-for-word in ENGLISH ONLY. The mission can be SHORT (1-5 words like 'Enforcing Information Security') or LONG (full sentences). Look for: sentences starting with action verbs ('To give', 'To enable', 'Our mission is', 'We aim'), SHORT taglines/headings describing purpose, or full paragraphs explaining WHY (not WHAT). PRIORITIZE: homepage hero/taglines, page titles/headers, 'About Us' first paragraph, 'Mission' pages. Extract EXACT English text - do NOT paraphrase, expand, TRANSLATE from other languages, or add context. If page is in another language, SKIP it and look for English version. If mission is short (e.g., 'Enforcing Information Security'), extract exactly that - do NOT extract a longer description. AVOID: product features, company histories, job descriptions, non-English text, marketing paragraphs. The mission is often in page headers, taglines, or the first sentence of About Us. CRITICAL: Return ONLY English text - if you see non-English content, find the English equivalent.",
     
     "funding": "CRITICAL: Look for investment announcements, funding rounds, investor mentions, or venture capital backing. Search: press releases, news articles, 'About Us' pages, 'Investors' page, 'Backers' page, Crunchbase links, or funding announcement blog posts. Extract the full investor/backer organization name (e.g., 'Outlier Ventures Operations Ltd (Outlier Ventures)'). For Private Sector Funding, look for venture capital firms, companies, foundations, consortia, or corporate sponsors.",
     
@@ -89,7 +89,9 @@
     
     "blockchain_registry": "CRITICAL: Look for which blockchain or verifiable data registry the project uses. Check: technical documentation, architecture docs, 'Technology' page, developer docs, or whitepapers. Look for mentions of specific blockchains like 'Cheqd', 'Hyperledger Indy', 'Ethereum', 'Polygon', or registry names. Extract the specific blockchain/registry name.",
     
-    "tech_stack": "Extract detailed technology descriptions from technical documentation, developer pages, architecture docs, or product pages."
+    "tech_stack": "Extract detailed technology descriptions from technical documentation, developer pages, architecture docs, or product pages.",
+    
+    "logo": "CRITICAL: Look for the official logo image URL on the homepage, header, footer, or 'Brand'/'Media' kit pages. Check: <img> tags, CSS background images, or logo links in page HTML. Look for URLs like 'logo.png', 'logo.svg', brandfetch.com, or cdn. Extracted value should be the direct image URL (ending in .png, .svg, .jpg, etc.). If logo is referenced via brandfetch.com or similar services, extract that URL. Do NOT use placeholder images or generic logos."
   },
   
   "type_hints": {
