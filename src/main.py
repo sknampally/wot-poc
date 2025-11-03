@@ -146,8 +146,9 @@ def main():
     print(f"input={input_xlsx} output={output_xlsx}")
 
     # Load codebook to get field definitions and determine what to extract
-    from app.config.codebook import load_codebook
+    from app.config.codebook import load_codebook, load_prompts
     codebook = load_codebook()
+    prompts_config = load_prompts()  # Load all prompts from prompts.json
     
     # Build all headers list from codebook (data + source + archived columns in order)
     # For POC, we include all columns from codebook regardless of source_needed/archive_needed
@@ -263,28 +264,35 @@ def main():
         # Add Product Name to the record (since extraction_needed=N in codebook)
         rec["Product Name"] = project
         
-        # Step 4: Perplexity fallback for empty key fields
+        # Step 4: Perplexity fallback for empty OR "Failed to disclose" key fields
         # Use Perplexity's web search for fields that the primary LLM couldn't extract
         missing_key_fields = []
-        if rec.get("Status", "").strip() == "":
+        
+        # Check for empty or "Failed to disclose" values in critical fields
+        def _should_try_perplexity(field_name: str) -> bool:
+            val = rec.get(field_name, "").strip()
+            # Try Perplexity if empty OR if LLM returned "Failed to disclose"
+            return val == "" or val.lower() == "failed to disclose"
+        
+        if _should_try_perplexity("Status"):
             missing_key_fields.append("Status")
-        if rec.get("Mission Statement", "").strip() == "":
+        if _should_try_perplexity("Mission Statement"):
             missing_key_fields.append("Mission Statement")
-        if rec.get("Logo", "").strip() == "":
+        if _should_try_perplexity("Logo"):
             missing_key_fields.append("Logo")
-        if rec.get("Public Code Repository", "").strip() == "":
+        if _should_try_perplexity("Public Code Repository"):
             missing_key_fields.append("Public Code Repository")
-        if rec.get("Project Launch Date", "").strip() == "":
+        if _should_try_perplexity("Project Launch Date"):
             missing_key_fields.append("Project Launch Date")
-        if rec.get("Tech Stack Descriptions", "").strip() == "":
+        if _should_try_perplexity("Tech Stack Descriptions"):
             missing_key_fields.append("Tech Stack Descriptions")
-        if rec.get("Project Announcement Date", "").strip() == "":
+        if _should_try_perplexity("Project Announcement Date"):
             missing_key_fields.append("Project Announcement Date")
-        if rec.get("Uses/endorses ZKP", "").strip() == "":
+        if _should_try_perplexity("Uses/endorses ZKP"):
             missing_key_fields.append("Uses/endorses ZKP")
-        if rec.get("Person of Interest", "").strip() == "":
+        if _should_try_perplexity("Person of Interest"):
             missing_key_fields.append("Person of Interest")
-        if rec.get("Person of Interest Work Title", "").strip() == "":
+        if _should_try_perplexity("Person of Interest Work Title"):
             missing_key_fields.append("Person of Interest Work Title")
         
         if missing_key_fields and os.getenv("PERPLEXITY_API_KEY"):
@@ -294,66 +302,23 @@ def main():
             try:
                 for field in missing_key_fields:
                     # Query Perplexity to search the web for this specific field
-                    if field == "Status":
-                        # Use detailed prompt with status options
-                        query = f"what is the current status of {project}? Status could be as one of the below 4: 1. Announced: It has been publicly stated that the project is going to be developed. 2. Pilot: currently in testing stages before being publicly launched more widely. 3. Launched: it is already active and working. 4. Discontinued: project was declared discontinued publicly."
-                        max_tokens = 100
-                        strict_prompt = "Extract and return ONLY the status name (Announced, Pilot, Launched, or Discontinued). No explanations."
-                    elif field == "Mission Statement":
-                        query = f"summarize the mission statement of {project}"
+                    # Load prompt from prompts.json if available, otherwise use default
+                    fields_config = prompts_config.get("fields", {})
+                    field_config = fields_config.get(field)
+                    
+                    if field_config and "perplexity_query_template" in field_config:
+                        # Use config from prompts.json v2.0 format
+                        query_template = field_config.get("perplexity_query_template", f"{field.lower()} for {project}")
+                        strict_prompt = field_config.get("perplexity_system_prompt", "Extract and return ONLY the exact value requested. No explanations, no formatting, no additional text. Just the value itself.")
+                        max_tokens = field_config.get("perplexity_max_tokens", 200)
+                        
+                        # Format query with project name
+                        query = query_template.format(project=project)
                         if known_website:
+                            # Add website hint if available
                             query += f" from {known_website}"
-                        max_tokens = 300  # Mission statements
-                        strict_prompt = "Extract and return ONLY the mission statement. No explanations, no formatting."
-                    elif field == "Logo":
-                        query = f"give me the link to the logo of {project}"
-                        if known_website:
-                            query += f" from {known_website}"
-                        max_tokens = 100  # Logo URLs are short
-                        strict_prompt = "Extract and return ONLY the exact value requested. No explanations, no formatting, no additional text. Just the value itself."
-                    elif field == "Public Code Repository":
-                        query = f"GitHub repository URL for {project}"
-                        if known_website:
-                            query += f" at {known_website}"
-                        max_tokens = 100  # Repository URLs
-                        strict_prompt = "Extract and return ONLY the exact value requested. No explanations, no formatting, no additional text. Just the value itself."
-                    elif field == "Project Launch Date":
-                        query = f"launch year for {project}"
-                        if known_website:
-                            query += f" at {known_website}"
-                        max_tokens = 50  # Just need a year
-                        strict_prompt = "Extract and return ONLY the exact value requested. No explanations, no formatting, no additional text. Just the value itself."
-                    elif field == "Project Announcement Date":
-                        query = f"when was {project} first announced or founded? give me the earliest year"
-                        if known_website:
-                            query += f" at {known_website}"
-                        max_tokens = 50  # Just need a year
-                        strict_prompt = "Extract and return ONLY the exact value requested. No explanations, no formatting, no additional text. Just the value itself."
-                    elif field == "Tech Stack Descriptions":
-                        query = f"technology stack for {project}"
-                        if known_website:
-                            query += f" at {known_website}"
-                        max_tokens = 200  # Tech stack description
-                        strict_prompt = "Extract and return ONLY the exact value requested. No explanations, no formatting, no additional text. Just the value itself."
-                    elif field == "Uses/endorses ZKP":
-                        query = f"Defines {project} uses ZKP or if it endorses it. In case there is no explicit information about the project actively using ZKP or having an opinion about it \"Failed to disclose\" will be the response., for this I am looking for Yes / No or Failed to disclose"
-                        if known_website:
-                            query += f" at {known_website}"
-                        max_tokens = 100  # Short yes/no answer
-                        strict_prompt = "Extract and return ONLY the answer: Yes, No, or Failed to disclose. No explanations."
-                    elif field == "Person of Interest":
-                        query = f"who are the founders or key leaders of {project}? list their names"
-                        if known_website:
-                            query += f" at {known_website}"
-                        max_tokens = 150  # Names
-                        strict_prompt = "Extract and return ONLY the names of founders/key leaders. List names separated by commas."
-                    elif field == "Person of Interest Work Title":
-                        query = f"what are the job titles or roles of the founders or key leaders of {project}?"
-                        if known_website:
-                            query += f" at {known_website}"
-                        max_tokens = 150  # Titles
-                        strict_prompt = "Extract and return ONLY the job titles. List titles separated by commas."
                     else:
+                        # Fallback to default
                         query = f"{field.lower()} for {project}"
                         if known_website:
                             query += f" from {known_website}"

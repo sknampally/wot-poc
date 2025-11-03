@@ -108,7 +108,7 @@ def _make_prompt_payload(project: str, headers: List[str], context: str, codeboo
     """
     # Load prompts from JSON file for easy tweaking by prompt engineers
     prompts = load_prompts()
-    field_hints = prompts.get("field_hints", {})
+    fields_config = prompts.get("fields", {})
     type_hints = prompts.get("type_hints", {})
     
     # Build field-specific extraction hints from codebook definitions and JSON prompts
@@ -135,38 +135,9 @@ def _make_prompt_payload(project: str, headers: List[str], context: str, codeboo
             if response_type and response_type.strip():
                 hint_parts.append(f"Type: {response_type}")
             
-            # Add specific hints from JSON prompts based on field name patterns
-            h_lower = h.lower()
-            if "mission" in h_lower and "mission" in field_hints:
-                hint_parts.append(field_hints["mission"])
-            if "funding" in h_lower and "funding" in field_hints:
-                hint_parts.append(field_hints["funding"])
-            if ("partner" in h_lower or "affiliated" in h_lower) and "partner_affiliated" in field_hints:
-                hint_parts.append(field_hints["partner_affiliated"])
-            if "repository" in h_lower and "code" in h_lower and "repository_code" in field_hints:
-                hint_parts.append(field_hints["repository_code"])
-            if ("politically" in h_lower or "government" in h_lower) and "politically_government" in field_hints:
-                hint_parts.append(field_hints["politically_government"])
-            if ("managing entity" in h_lower or ("managing" in h_lower and "entity" in h_lower)) and "managing_entity" in field_hints:
-                hint_parts.append(field_hints["managing_entity"])
-            if ("app store" in h_lower or ("app" in h_lower and "store" in h_lower)) and "app_store" in field_hints:
-                hint_parts.append(field_hints["app_store"])
-            if "exportable" in h_lower and "credential" in h_lower and "exportable_credentials" in field_hints:
-                hint_parts.append(field_hints["exportable_credentials"])
-            if "credential" in h_lower and "key storage" in h_lower and "credential_key_storage" in field_hints:
-                hint_parts.append(field_hints["credential_key_storage"])
-            if ("zkp" in h_lower or "zero-knowledge" in h_lower) and "zkp_zero_knowledge" in field_hints:
-                hint_parts.append(field_hints["zkp_zero_knowledge"])
-            if "targets holders" in h_lower and "targets_holders" in field_hints:
-                hint_parts.append(field_hints["targets_holders"])
-            if "targets issuers" in h_lower and "targets_issuers" in field_hints:
-                hint_parts.append(field_hints["targets_issuers"])
-            if "targets verifiers" in h_lower and "targets_verifiers" in field_hints:
-                hint_parts.append(field_hints["targets_verifiers"])
-            if "blockchain" in h_lower and ("registr" in h_lower or "data" in h_lower) and "blockchain_registry" in field_hints:
-                hint_parts.append(field_hints["blockchain_registry"])
-            if ("tech stack" in h_lower or "technology" in h_lower) and "tech_stack" in field_hints:
-                hint_parts.append(field_hints["tech_stack"])
+            # Add specific hints from JSON prompts based on exact field name (v2.0 format)
+            if h in fields_config and "llm_hint" in fields_config[h]:
+                hint_parts.append(fields_config[h]["llm_hint"])
             
             # Determine if this field allows "Failed to disclose"
             # Only specific fields explicitly allow it per data definitions  
