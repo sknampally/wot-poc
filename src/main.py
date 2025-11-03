@@ -266,6 +266,8 @@ def main():
         # Step 4: Perplexity fallback for empty key fields
         # Use Perplexity's web search for fields that the primary LLM couldn't extract
         missing_key_fields = []
+        if rec.get("Status", "").strip() == "":
+            missing_key_fields.append("Status")
         if rec.get("Mission Statement", "").strip() == "":
             missing_key_fields.append("Mission Statement")
         if rec.get("Logo", "").strip() == "":
@@ -276,6 +278,8 @@ def main():
             missing_key_fields.append("Project Launch Date")
         if rec.get("Tech Stack Descriptions", "").strip() == "":
             missing_key_fields.append("Tech Stack Descriptions")
+        if rec.get("Project Announcement Date", "").strip() == "":
+            missing_key_fields.append("Project Announcement Date")
         
         if missing_key_fields and os.getenv("PERPLEXITY_API_KEY"):
             log.info("[perplexity] Fallback for %s: %d missing fields", project, len(missing_key_fields))
@@ -284,39 +288,53 @@ def main():
             try:
                 for field in missing_key_fields:
                     # Query Perplexity to search the web for this specific field
-                    if field == "Mission Statement":
+                    if field == "Status":
+                        # Use detailed prompt with status options
+                        query = f"what is the current status of {project}? Status could be as one of the below 4: 1. Announced: It has been publicly stated that the project is going to be developed. 2. Pilot: currently in testing stages before being publicly launched more widely. 3. Launched: it is already active and working. 4. Discontinued: project was declared discontinued publicly."
+                        max_tokens = 100
+                        strict_prompt = "Extract and return ONLY the status name (Announced, Pilot, Launched, or Discontinued). No explanations."
+                    elif field == "Mission Statement":
                         query = f"what is the mission statement of {project}"
                         if known_website:
                             query += f" from {known_website}"
                         max_tokens = 300  # Mission statements
+                        strict_prompt = "Extract and return ONLY the exact value requested. No explanations, no formatting, no additional text. Just the value itself."
                     elif field == "Logo":
                         query = f"give me the link to the logo of {project}"
                         if known_website:
                             query += f" from {known_website}"
                         max_tokens = 100  # Logo URLs are short
+                        strict_prompt = "Extract and return ONLY the exact value requested. No explanations, no formatting, no additional text. Just the value itself."
                     elif field == "Public Code Repository":
                         query = f"GitHub repository URL for {project}"
                         if known_website:
                             query += f" at {known_website}"
                         max_tokens = 100  # Repository URLs
+                        strict_prompt = "Extract and return ONLY the exact value requested. No explanations, no formatting, no additional text. Just the value itself."
                     elif field == "Project Launch Date":
                         query = f"launch year for {project}"
                         if known_website:
                             query += f" at {known_website}"
                         max_tokens = 50  # Just need a year
+                        strict_prompt = "Extract and return ONLY the exact value requested. No explanations, no formatting, no additional text. Just the value itself."
+                    elif field == "Project Announcement Date":
+                        query = f"when was {project} first announced or founded? give me the earliest year"
+                        if known_website:
+                            query += f" at {known_website}"
+                        max_tokens = 50  # Just need a year
+                        strict_prompt = "Extract and return ONLY the exact value requested. No explanations, no formatting, no additional text. Just the value itself."
                     elif field == "Tech Stack Descriptions":
                         query = f"technology stack for {project}"
                         if known_website:
                             query += f" at {known_website}"
                         max_tokens = 200  # Tech stack description
+                        strict_prompt = "Extract and return ONLY the exact value requested. No explanations, no formatting, no additional text. Just the value itself."
                     else:
                         query = f"{field.lower()} for {project}"
                         if known_website:
                             query += f" from {known_website}"
                         max_tokens = 200
-                    
-                    # Use stricter prompt for concise responses
-                    strict_prompt = "Extract and return ONLY the exact value requested. No explanations, no formatting, no additional text. Just the value itself."
+                        strict_prompt = "Extract and return ONLY the exact value requested. No explanations, no formatting, no additional text. Just the value itself."
                     
                     perplexity_response = chat_json(
                         system=strict_prompt,
@@ -365,6 +383,25 @@ def main():
                             years = re.findall(r'\b(19|20\d{2})\b', cleaned)
                             if years:
                                 cleaned = years[0]
+                        
+                        # For Project Announcement Date, extract first 4-digit year
+                        elif field == "Project Announcement Date":
+                            import re
+                            years = re.findall(r'\b(19|20\d{2})\b', cleaned)
+                            if years:
+                                cleaned = years[0]
+                        
+                        # For Status field, extract status name from response
+                        elif field == "Status":
+                            # Look for status keywords in the response
+                            statuses = ["Announced", "Pilot", "Launched", "Discontinued"]
+                            found_status = None
+                            for status in statuses:
+                                if status.lower() in cleaned.lower():
+                                    found_status = status
+                                    break
+                            if found_status:
+                                cleaned = found_status
                         
                         # For long responses (Mission, Tech Stack), summarize using OpenAI if verbose
                         elif len(cleaned) > 200 and field in ["Mission Statement", "Tech Stack Descriptions"]:
