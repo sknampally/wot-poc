@@ -6,11 +6,11 @@
       "response_type": "[Primary Key]",
       "extraction_needed": "N",
       "data_definition": "",
-      "source_column": "Source ID",
-      "source_response_type": "",
+      "source_column": "",
+      "source_response_type": "[URL]",
       "source_needed": "N",
-      "archived_column": "Archived Source ID",
-      "archived_response_type": "",
+      "archived_column": "",
+      "archived_response_type": "[URL]",
       "archive_needed": "N"
     },
     {
@@ -421,5 +421,26 @@
       "archived_response_type": "[URL]",
       "archive_needed": "N"
     }
-  ]
+  ],
+  "status_enums": [
+    "Announced",
+    "Pilot",
+    "Launched",
+    "Discontinued"
+  ],
+  "ternary_enums": [
+    "True",
+    "False",
+    "Failed to disclose"
+  ],
+  "year_fields": [
+    "Project Announcement Date",
+    "Project Launch Date",
+    "Announcement Repositories / News"
+  ],
+  "normalize": {
+    "status": {},
+    "ternary": {}
+  },
+  "field_synonyms": {}
 }

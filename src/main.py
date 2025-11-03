@@ -27,6 +27,7 @@ from dotenv import load_dotenv
 
 from app.utils.logger import setup_logging
 from app.utils.accuracy import print_accuracy_report
+from app.utils.codebook_import import import_excel_to_codebook
 from app.workers.searcher import search_urls
 from app.workers.scraper import scrape_urls
 from app.workers.extractor import extract_record
@@ -84,6 +85,12 @@ def parse_args():
         action="store_true",
         help="Run accuracy check on existing output.xlsx and exit"
     )
+    p.add_argument(
+        "--import-codebook",
+        type=str,
+        metavar="EXCEL_PATH",
+        help="Import codebook from Excel file and convert to JSON, then exit"
+    )
     return p.parse_args()
 
 def main():
@@ -115,9 +122,22 @@ def main():
         print_accuracy_report(output_xlsx)
         return
     
+    # Handle --import-codebook flag (import Excel to JSON)
+    if args.import_codebook:
+        try:
+            excel_path = args.import_codebook
+            import_excel_to_codebook(excel_path)
+            print("\n✅ Codebook import complete!")
+            log.info("[main] Codebook imported from %s", excel_path)
+            return
+        except Exception as e:
+            print(f"\n❌ Error importing codebook: {e}")
+            log.error("[main] Codebook import failed: %s", e, exc_info=True)
+            sys.exit(1)
+    
     # Validate targets are provided for extraction
     if not args.targets:
-        print("Error: --targets is required for extraction. Use --check-accuracy to run accuracy check only.")
+        print("Error: --targets is required for extraction. Use --check-accuracy or --import-codebook for utility functions.")
         sys.exit(1)
 
     # Define input/output Excel files

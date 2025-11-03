@@ -78,12 +78,19 @@ OLLAMA_MODEL=llama3.1
 The system uses a **codebook** (field definitions) from `data/wot_data_definations.xlsx` to guide extraction.
 
 ### Import Data Definitions
-If you update the Excel file with data definitions:
+If stakeholders update the Excel file with data definitions, convert it to the codebook format:
+
 ```bash
-python import_codebook_excel.py data/wot_data_definations.xlsx
+# Method 1: Using main.py (recommended)
+python src/main.py --import-codebook data/wot_data_definations.xlsx
+
+# Method 2: Direct import utility
+python -m app.utils.codebook_import data/wot_data_definations.xlsx
 ```
 
 This creates `data/codebook.json` which the system automatically uses for better extraction guidance.
+
+**Note:** Run this whenever the Excel definitions file is updated. The import is an optional ad-hoc step.
 
 ## 🧩  5  Running the POC
 
@@ -114,6 +121,7 @@ python src/main.py --targets all
 - `--model`: Model name (default: `gpt-4o-mini`)
 - `--max-output-tokens`: Max tokens for LLM response (default: 4000)
 - `--check-accuracy`: Run accuracy check only (skip extraction)
+- `--import-codebook`: Import codebook from Excel and exit
 
 ### Step 4  Check accuracy
 ```bash
@@ -246,22 +254,7 @@ wot-poc/
   └─ README.md
 ```
 
-## 🎉  12  Recent Improvements
-
-### v2.0 Updates (Latest)
-- ✅ **Prompts Externalized**: All LLM prompts moved to `data/prompts.json` for easy editing by prompt engineers
-- ✅ **Cost Optimization**: SerpAPI calls reduced by ~70% (7-9 queries vs 20-30+ before)
-- ✅ **Codebook v2.0**: New field structure with extraction flags and metadata
-- ✅ **Accuracy Maintained**: 38.7% overall accuracy after optimizations
-- ✅ **Production Ready**: All prompts configurable, no hardcoded strings
-
-### Performance
-- **Current Accuracy**: 38.7% overall (48/124 fields matching across 4 projects)
-- **Individual Projects**: 32-35% accuracy range
-- **API Efficiency**: ~70% reduction in SerpAPI costs
-- **Processing Time**: ~2-3 minutes per project (vs 5-7 minutes before)
-
-## ✅  13  Summary
+## ✅  12  Summary
 
 This POC automatically:
 1. ✅ Searches the web for project information (SerpAPI)

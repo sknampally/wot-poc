@@ -22,19 +22,10 @@ __pycache__/
 *.so
 .Python
 
-# Test and helper scripts (not part of POC)
-check_accuracy.py
-import_codebook_excel.py
-analyze_matches.py
-quick_analysis.py
-check_fields.py
-analyze_data_coverage.py
-analyze_mismatches.py
-analyze_field_details.py
+# Test and helper scripts (not part of POC - deleted)
+# These scripts were removed - functionality consolidated into main.py and utils
 
-# Internal documentation/notes
-IMPROVEMENTS_SUMMARY.md
-TEAM_CHANGELOG.md
+# Internal documentation/notes (removed - old files)
 
 # IDE files
 .vscode/
@@ -49,4 +40,4 @@ Thumbs.db
 
 # Excel temp files
 ~$*.xlsx
-~$*.xlsTEAM_CHANGELOG.md
+~$*.xls
