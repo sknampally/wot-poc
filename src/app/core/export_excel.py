@@ -53,14 +53,17 @@ def _build_ai_df(headers: List[str], recs: List[Dict[str, Any]], all_headers: Li
     # Load allowed fields from prompts.json config
     from app.config.codebook import load_prompts
     prompts_config = load_prompts()
-    allowed_failed_to_disclose_fields_list = prompts_config.get("allowed_failed_to_disclose_fields", [
-        "Uses/endorses ZKP",
-        "Has Exportable Credentials",
-        "Credential And Key Storage",
-        "Targets Holders",
-        "Targets Issuers",
-        "Targets Verifiers",
-    ])
+    allowed_failed_to_disclose_fields_list = prompts_config.get("allowed_failed_to_disclose_fields", [])
+    if not allowed_failed_to_disclose_fields_list:
+        # Use defaults if prompts.json is missing or incomplete
+        allowed_failed_to_disclose_fields_list = [
+            "Uses/endorses ZKP",
+            "Has Exportable Credentials",
+            "Credential And Key Storage",
+            "Targets Holders",
+            "Targets Issuers",
+            "Targets Verifiers",
+        ]
     allowed_failed_to_disclose_fields = set(allowed_failed_to_disclose_fields_list)
     
     # If all_headers provided, include source columns; otherwise just data columns

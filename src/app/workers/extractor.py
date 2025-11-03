@@ -262,10 +262,13 @@ def _extract_official_website(pages: List[Dict[str, Any]], known_website: str = 
     
     # Load excluded domains from prompts.json config
     prompts_config = load_prompts()
-    excluded_domains = prompts_config.get("excluded_domains", [
-        'youtube.com', 'facebook.com', 'twitter.com', 'x.com',
-        '.reviews', 'linkedin.com', 'reddit.com', 'archive.', 'podcasts.apple.com'
-    ])
+    excluded_domains = prompts_config.get("excluded_domains", [])
+    if not excluded_domains:
+        # Use defaults if prompts.json is missing or incomplete
+        excluded_domains = [
+            'youtube.com', 'facebook.com', 'twitter.com', 'x.com',
+            '.reviews', 'linkedin.com', 'reddit.com', 'archive.', 'podcasts.apple.com'
+        ]
     
     candidates = []
     for p in pages[:15]:  # Check first 15 pages
@@ -405,12 +408,15 @@ def extract_record(
     
     # Load exclude keywords from prompts.json config
     prompts_config = load_prompts()
-    exclude_keywords = prompts_config.get("exclude_keywords", [
-        'career', 'jobs', 'hiring', 'recruit', 'position', 'vacancy', 'apply now',
-        'download', '.pdf', '.zip', '.exe', '.dmg',
-        'cookie policy', 'privacy policy', 'terms of service', 'legal notice',
-        'sitemap', 'robots.txt'
-    ])
+    exclude_keywords = prompts_config.get("exclude_keywords", [])
+    if not exclude_keywords:
+        log.warning("[extract] %s: No exclude_keywords in prompts.json, using defaults", project)
+        exclude_keywords = [
+            'career', 'jobs', 'hiring', 'recruit', 'position', 'vacancy', 'apply now',
+            'download', '.pdf', '.zip', '.exe', '.dmg',
+            'cookie policy', 'privacy policy', 'terms of service', 'legal notice',
+            'sitemap', 'robots.txt'
+        ]
     
     for p in pages:
         url = (p.get("url") or "").lower()
@@ -498,15 +504,18 @@ def extract_record(
     
     # Load system prompt from JSON (with fallback)
     prompts_config = load_prompts()
-    system_prompt = prompts_config.get("system_prompt", (
-        "You are a precise data extraction assistant specializing in digital identity and SSI projects. "
-        "You extract structured information from web sources. "
-        "You must ONLY use information explicitly found in the provided context. "
-        "Be thorough - search all provided URLs and text. "
-        "CRITICAL: Only 6-7 specific fields allow 'Failed to disclose' as a value. "
-        "For all other fields, use empty string (\"\") if information is not found. "
-        "Follow the field-specific value constraints in the user prompt exactly."
-    ))
+    system_prompt = prompts_config.get("system_prompt", "")
+    if not system_prompt:
+        log.warning("[extract] %s: No system_prompt in prompts.json, using defaults", project)
+        system_prompt = (
+            "You are a precise data extraction assistant specializing in digital identity and SSI projects. "
+            "You extract structured information from web sources. "
+            "You must ONLY use information explicitly found in the provided context. "
+            "Be thorough - search all provided URLs and text. "
+            "CRITICAL: Only 6-7 specific fields allow 'Failed to disclose' as a value. "
+            "For all other fields, use empty string (\"\") if information is not found. "
+            "Follow the field-specific value constraints in the user prompt exactly."
+        )
 
     messages = [
         {"role": "system", "content": system_prompt},
@@ -539,14 +548,17 @@ def extract_record(
         # Post-process: Remove "Failed to disclose" from fields that don't allow it (after coercion to match exact headers)
         # Load allowed fields from prompts.json config
         prompts_config = load_prompts()
-        allowed_failed_to_disclose_fields_list = prompts_config.get("allowed_failed_to_disclose_fields", [
-            "Uses/endorses ZKP",
-            "Has Exportable Credentials",
-            "Credential And Key Storage",
-            "Targets Holders",
-            "Targets Issuers",
-            "Targets Verifiers",
-        ])
+        allowed_failed_to_disclose_fields_list = prompts_config.get("allowed_failed_to_disclose_fields", [])
+        if not allowed_failed_to_disclose_fields_list:
+            log.warning("[extract] %s: No allowed_failed_to_disclose_fields in prompts.json, using defaults", project)
+            allowed_failed_to_disclose_fields_list = [
+                "Uses/endorses ZKP",
+                "Has Exportable Credentials",
+                "Credential And Key Storage",
+                "Targets Holders",
+                "Targets Issuers",
+                "Targets Verifiers",
+            ]
         allowed_failed_to_disclose_fields = set(allowed_failed_to_disclose_fields_list)
         
         # Clean up "Failed to disclose" from normalized headers
