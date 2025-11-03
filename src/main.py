@@ -248,12 +248,12 @@ def main():
                 for field in missing_key_fields:
                     # Query Perplexity to search the web for this specific field
                     if field == "Mission Statement":
-                        query = f"mission statement of {project}"
+                        query = f"what is the mission statement of {project}"
                         if known_website:
                             query += f" from {known_website}"
                         max_tokens = 300  # Mission statements
                     elif field == "Logo":
-                        query = f"logo image URL for {project}"
+                        query = f"give me the link to the logo of {project}"
                         if known_website:
                             query += f" from {known_website}"
                         max_tokens = 100  # Logo URLs are short
@@ -293,15 +293,20 @@ def main():
                         # Post-process Perplexity response to extract clean value
                         cleaned = perplexity_response.strip()
                         
-                        # For Logo, extract first image URL
+                        # For Logo, extract first image URL or brand assets page
                         if field == "Logo":
                             import re
-                            # Look for image URLs (png, svg, jpg, webp, etc.)
+                            # First try to find direct image URLs (png, svg, jpg, webp, etc.)
                             img_urls = re.findall(r'https?://[^\s\[\]]+\.(?:png|svg|jpg|jpeg|webp|gif|ico)', cleaned, re.IGNORECASE)
                             if img_urls:
                                 cleaned = img_urls[0]
-                            # Remove markdown formatting
-                            cleaned = cleaned.replace('**', '').replace('*', '')
+                            else:
+                                # Otherwise look for brand assets pages (brandfetch, etc.)
+                                brand_urls = re.findall(r'https?://[^\s\[\]]*(?:brandfetch|brandassets|logo|brand)[^\s\[\]]*', cleaned, re.IGNORECASE)
+                                if brand_urls:
+                                    cleaned = brand_urls[0]
+                            # Remove markdown formatting and trailing punctuation
+                            cleaned = cleaned.replace('**', '').replace('*', '').rstrip('.,;')
                         
                         # For Public Code Repository, extract first GitHub/GitLab URL
                         elif field == "Public Code Repository":

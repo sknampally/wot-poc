@@ -368,10 +368,14 @@ def export_to_excel(input_xlsx: Path, headers: List[str], recs: List[Dict[str, A
             if "ID" in all_headers and "ID" in df_input.columns:
                 id_map = dict(zip(df_input[name_col].str.strip(), df_input["ID"].str.strip()))
                 df_new_ai["ID"] = df_new_ai[name_col].str.strip().map(id_map).fillna("")
-            # Copy Logo from input (URL to image, not text to extract)
+            # Don't copy Logo from input - it can be extracted by Perplexity or LLM
+            # Only copy if it wasn't already extracted
             if "Logo" in all_headers and "Logo" in df_input.columns:
+                # Only copy from input if the AI sheet has empty Logo values
                 logo_map = dict(zip(df_input[name_col].str.strip(), df_input["Logo"].str.strip()))
-                df_new_ai["Logo"] = df_new_ai[name_col].str.strip().map(logo_map).fillna("")
+                for idx in df_new_ai.index:
+                    if not df_new_ai.at[idx, "Logo"]:  # Only if empty
+                        df_new_ai.at[idx, "Logo"] = logo_map.get(df_new_ai.at[idx, name_col], "")
     
     # Use all headers for AI sheet (includes sources), but only data columns for comparison
     output_cols = all_headers if all_headers else headers
