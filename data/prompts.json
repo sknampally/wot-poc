@@ -107,8 +107,8 @@
     
     "Uses/endorses ZKP": {
       "llm_hint": "CRITICAL: Look for mentions of zero-knowledge proofs (ZKP). Search for: 'zero-knowledge proofs', 'ZKP', 'zk-SNARKs', 'zk-STARKs', 'privacy-preserving proofs', 'anonymous credentials'. Check technical documentation, whitepapers, architecture docs, or feature pages. If project uses or endorses ZKP technology, use 'True'. If it does not use ZKP, use 'False'. If no information found about ZKP usage, use 'Failed to disclose'.",
-      "perplexity_query_template": "Defines {project} uses ZKP or if it endorses it. In case there is no explicit information about the project actively using ZKP or having an opinion about it \"Failed to disclose\" will be the response., for this I am looking for Yes / No or Failed to disclose",
-      "perplexity_system_prompt": "Extract and return ONLY the answer: Yes, No, or Failed to disclose. No explanations.",
+      "perplexity_query_template": "Does {project} use zero-knowledge proofs (ZKP) or endorses it? Answer must be one of: True, False, or Failed to disclose. In case there is no explicit information about the project actively using ZKP or having an opinion about it, 'Failed to disclose' will be the response.",
+      "perplexity_system_prompt": "Extract and return ONLY the answer: True, False, or Failed to disclose. No explanations.",
       "perplexity_max_tokens": 100
     },
     
@@ -127,23 +127,38 @@
     },
     
     "Has Exportable Credentials": {
-      "llm_hint": "CRITICAL: Look for explicit mentions of credential export functionality. Search for: 'export credentials', 'download credentials', 'backup credentials', 'export wallet', or documentation about credential management. If the project mentions users can export/download their credentials, use 'True'. If it only mentions import but not export, use 'False'. If no information found, use 'Failed to disclose'."
+      "llm_hint": "CRITICAL: Look for explicit mentions of credential export functionality. Search for: 'export credentials', 'download credentials', 'backup credentials', 'export wallet', or documentation about credential management. If the project mentions users can export/download their credentials, use 'True'. If it only mentions import but not export, use 'False'. If no information found, use 'Failed to disclose'.",
+      "perplexity_query_template": "Does {project} explicitly mention that holders can export their credentials? Answer must be one of: True, False, or Failed to disclose. If the project mentions it can only import and doesn't specify they can be exported, use 'False'. If no information about import/export is identified, use 'Failed to disclose'.",
+      "perplexity_system_prompt": "Extract and return ONLY the answer: True, False, or Failed to disclose. No explanations.",
+      "perplexity_max_tokens": 100
     },
     
     "Credential And Key Storage": {
-      "llm_hint": "CRITICAL: Look for information about where credentials and keys are stored. Search for: 'user-controlled keys', 'exclusive custody', 'wallet storage', 'HSM', 'cloud storage', 'user custody', 'key management'. If project mentions user has exclusive custody of credentials/keys, use 'True'. If it mentions custodial or third-party storage, use 'False'. If no information found, use 'Failed to disclose'."
+      "llm_hint": "CRITICAL: Look for information about where credentials and keys are stored. Search for: 'user-controlled keys', 'exclusive custody', 'wallet storage', 'HSM', 'cloud storage', 'user custody', 'key management'. If project mentions user has exclusive custody of credentials/keys, use 'True'. If it mentions custodial or third-party storage, use 'False'. If no information found, use 'Failed to disclose'.",
+      "perplexity_query_template": "Does {project} explicitly mention that holders have exclusive custody of their credentials and keys? Answer must be one of: True, False, or Failed to disclose. 'Failed to disclose' will be used whenever there is no information about the storage of credentials and keys at all.",
+      "perplexity_system_prompt": "Extract and return ONLY the answer: True, False, or Failed to disclose. No explanations.",
+      "perplexity_max_tokens": 100
     },
     
     "Targets Holders": {
-      "llm_hint": "CRITICAL: Look for features or products for holders/users. Search for: 'wallet', 'holder', 'user wallet', 'mobile wallet', 'digital wallet', 'credential wallet', 'identity wallet', 'hold credentials', 'store credentials'. Check product pages, features, or developer documentation. If project offers wallet or holder features, use 'True'. If no holder features mentioned, use 'False'. If unclear whether project targets holders, use 'Failed to disclose'."
+      "llm_hint": "CRITICAL: Look for features or products for holders/users. Search for: 'wallet', 'holder', 'user wallet', 'mobile wallet', 'digital wallet', 'credential wallet', 'identity wallet', 'hold credentials', 'store credentials'. Check product pages, features, or developer documentation. If project offers wallet or holder features, use 'True'. If no holder features mentioned, use 'False'. If unclear whether project targets holders, use 'Failed to disclose'.",
+      "perplexity_query_template": "Does {project} have features for use by holders, such as wallets? Answer must be one of: True, False, or Failed to disclose. 'Failed to disclose' will be selected if there is no clear indication whether the project is targeted toward holders or not.",
+      "perplexity_system_prompt": "Extract and return ONLY the answer: True, False, or Failed to disclose. No explanations.",
+      "perplexity_max_tokens": 100
     },
     
     "Targets Issuers": {
-      "llm_hint": "CRITICAL: Look for features or products for issuers. Search for: 'issuer', 'issue credentials', 'credential issuance', 'issuer tools', 'issuer platform', 'credential creation'. Check product pages, features, or developer documentation. If project offers issuer/credential creation features, use 'True'. If no issuer features mentioned, use 'False'. If unclear whether project targets issuers, use 'Failed to disclose'."
+      "llm_hint": "CRITICAL: Look for features or products for issuers. Search for: 'issuer', 'issue credentials', 'credential issuance', 'issuer tools', 'issuer platform', 'credential creation'. Check product pages, features, or developer documentation. If project offers issuer/credential creation features, use 'True'. If no issuer features mentioned, use 'False'. If unclear whether project targets issuers, use 'Failed to disclose'.",
+      "perplexity_query_template": "Does {project} have features for use by issuers, such as credential issuance solutions? Answer must be one of: True, False, or Failed to disclose. 'Failed to disclose' will be selected if there is no clear indication whether the project is targeted toward issuers or not.",
+      "perplexity_system_prompt": "Extract and return ONLY the answer: True, False, or Failed to disclose. No explanations.",
+      "perplexity_max_tokens": 100
     },
     
     "Targets Verifiers": {
-      "llm_hint": "CRITICAL: Look for features or products for verifiers. Search for: 'verifier', 'verify credentials', 'QR reader', 'scan', 'verification tools', 'credential verification'. Check product pages, features, or developer documentation. If project offers verification features, use 'True'. If no verifier features mentioned, use 'False'. If unclear whether project targets verifiers, use 'Failed to disclose'."
+      "llm_hint": "CRITICAL: Look for features or products for verifiers. Search for: 'verifier', 'verify credentials', 'QR reader', 'scan', 'verification tools', 'credential verification'. Check product pages, features, or developer documentation. If project offers verification features, use 'True'. If no verifier features mentioned, use 'False'. If unclear whether project targets verifiers, use 'Failed to disclose'.",
+      "perplexity_query_template": "Does {project} have features for use by verifiers, such as QR readers? Answer must be one of: True, False, or Failed to disclose. 'Failed to disclose' will be selected if there is no clear indication whether the project is targeted toward verifiers or not.",
+      "perplexity_system_prompt": "Extract and return ONLY the answer: True, False, or Failed to disclose. No explanations.",
+      "perplexity_max_tokens": 100
     },
     
     "Politically Involved?": {

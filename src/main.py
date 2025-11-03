@@ -266,34 +266,25 @@ def main():
         
         # Step 4: Perplexity fallback for empty OR "Failed to disclose" key fields
         # Use Perplexity's web search for fields that the primary LLM couldn't extract
+        # At $0.0005 per query, it's cost-effective to query ALL fields with Perplexity config
         missing_key_fields = []
         
-        # Check for empty or "Failed to disclose" values in critical fields
+        # Load fields config to check which fields have Perplexity config
+        fields_config = prompts_config.get("fields", {})
+        
+        # Check for empty or "Failed to disclose" values in ALL fields that have Perplexity config
         def _should_try_perplexity(field_name: str) -> bool:
+            # Only try Perplexity if field has a query_template configured
+            if field_name not in fields_config or "perplexity_query_template" not in fields_config[field_name]:
+                return False
             val = rec.get(field_name, "").strip()
             # Try Perplexity if empty OR if LLM returned "Failed to disclose"
             return val == "" or val.lower() == "failed to disclose"
         
-        if _should_try_perplexity("Status"):
-            missing_key_fields.append("Status")
-        if _should_try_perplexity("Mission Statement"):
-            missing_key_fields.append("Mission Statement")
-        if _should_try_perplexity("Logo"):
-            missing_key_fields.append("Logo")
-        if _should_try_perplexity("Public Code Repository"):
-            missing_key_fields.append("Public Code Repository")
-        if _should_try_perplexity("Project Launch Date"):
-            missing_key_fields.append("Project Launch Date")
-        if _should_try_perplexity("Tech Stack Descriptions"):
-            missing_key_fields.append("Tech Stack Descriptions")
-        if _should_try_perplexity("Project Announcement Date"):
-            missing_key_fields.append("Project Announcement Date")
-        if _should_try_perplexity("Uses/endorses ZKP"):
-            missing_key_fields.append("Uses/endorses ZKP")
-        if _should_try_perplexity("Person of Interest"):
-            missing_key_fields.append("Person of Interest")
-        if _should_try_perplexity("Person of Interest Work Title"):
-            missing_key_fields.append("Person of Interest Work Title")
+        # Check ALL headers for missing fields with Perplexity config
+        for field in headers_for_extraction:
+            if _should_try_perplexity(field):
+                missing_key_fields.append(field)
         
         if missing_key_fields and os.getenv("PERPLEXITY_API_KEY"):
             log.info("[perplexity] Fallback for %s: %d missing fields", project, len(missing_key_fields))
@@ -303,7 +294,7 @@ def main():
                 for field in missing_key_fields:
                     # Query Perplexity to search the web for this specific field
                     # Load prompt from prompts.json if available, otherwise use default
-                    fields_config = prompts_config.get("fields", {})
+                    # fields_config already loaded above
                     field_config = fields_config.get(field)
                     
                     if field_config and "perplexity_query_template" in field_config:
