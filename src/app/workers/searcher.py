@@ -445,6 +445,8 @@ def search_urls(project: str, cache_dir: Path | None = None, known_website: str 
                 f'{project} official website about mission',  # Combined: website + about + mission
                 f'{project} founded established launched announcement',  # Combined: dates info
                 f'{project} funding investors partners',  # Combined: funding + partnerships
+                f'{project} wallet ZKP zero-knowledge proofs',  # Combined: technical features
+                f'{project} export credentials key storage',  # Combined: technical features
             ]
         else:
             queries = [
@@ -454,6 +456,8 @@ def search_urls(project: str, cache_dir: Path | None = None, known_website: str 
                 f'{project} founded established launched announcement',  # Combined: dates info
                 f'{project} funding investors partners',  # Combined: funding + partnerships
                 f'{project} github repository open source',  # Combined: code repository
+                f'{project} wallet ZKP zero-knowledge proofs',  # Combined: technical features
+                f'{project} export credentials key storage',  # Combined: technical features
             ]
         
         # Add domain-specific searches if we have a domain (and no known_website already added site: queries)
@@ -482,6 +486,32 @@ def search_urls(project: str, cache_dir: Path | None = None, known_website: str 
             if known_normalized and known_normalized not in serp_urls:
                 serp_urls.insert(0, known_normalized)  # Insert at front for highest priority
                 log.info("[search] %s: added known website as priority URL: %s", project, known_normalized)
+            
+            # IMPORTANT: When known website is provided, also generate common pages from that domain
+            # This is critical because Google may not index some domains (e.g., masfan.rfef.es)
+            # and SerpAPI site: queries return no results, leaving us with only the specific URL provided
+            parsed = urlparse(known_normalized)
+            known_domain = parsed.netloc.lower().replace("www.", "")
+            known_base = f"{parsed.scheme or 'https'}://{known_domain}"
+            
+            # Common pages that typically contain mission statements, company info, etc.
+            common_pages = [
+                "",  # Homepage
+                "/about", "/about-us", "/sobre-nosotros",  # About pages (English and Spanish)
+                "/mission", "/mision", "/vision",  # Mission/Vision pages
+                "/company", "/empresa",  # Company pages
+                "/who-we-are", "/quienes-somos",  # Who we are pages
+            ]
+            
+            # Add these pages to the URL list (they'll be tested during scraping)
+            # Filter out the ones that are already in the list
+            for page_path in common_pages:
+                full_url = f"{known_base}{page_path}"
+                if full_url not in serp_urls:
+                    serp_urls.append(full_url)
+                    log.debug("[search] %s: added common page from known domain: %s", project, full_url)
+            
+            log.info("[search] %s: added %d common pages from known domain", project, len(common_pages))
         log.info("[search] %s: SerpAPI returned %d urls from %d queries", project, len(serp_urls), len(queries))
 
     # 2) Fallback seeds (always add a few; SerpAPI doesn't always catch product docs)

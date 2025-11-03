@@ -1,200 +1,425 @@
 {
-  "status_enums": [
-    "Announced",
-    "Pilot",
-    "Launched",
-    "Discontinued"
-  ],
-  "ternary_enums": [
-    "True",
-    "False",
-    "Failed to disclose"
-  ],
-  "year_fields": [
-    "Project Announcement Date",
-    "Project Launch Date",
-    "Announcement Repositories / News"
-  ],
-  "normalize": {
-    "status": {},
-    "ternary": {}
-  },
-  "field_synonyms": {},
-  "field_definitions": {
-    "Product Name": {
-      "description": "Official English name of the project.",
-      "type": "text",
-      "extraction_guidance": "Official English name of the project."
+  "version": "2.0",
+  "fields": [
+    {
+      "data_column": "ID",
+      "response_type": "[Primary Key]",
+      "extraction_needed": "N",
+      "data_definition": "",
+      "source_column": "Source ID",
+      "source_response_type": "",
+      "source_needed": "N",
+      "archived_column": "Archived Source ID",
+      "archived_response_type": "",
+      "archive_needed": "N"
     },
-    "ID": {
-      "description": "",
-      "type": "text",
-      "extraction_guidance": ""
+    {
+      "data_column": "Product Name",
+      "response_type": "[text]",
+      "extraction_needed": "N",
+      "data_definition": "",
+      "source_column": "Source Product Name",
+      "source_response_type": "[URL]",
+      "source_needed": "N",
+      "archived_column": "Archived Source Product Name",
+      "archived_response_type": "[URL]",
+      "archive_needed": "N"
     },
-    "Website": {
-      "description": "Official website of the project or the managing\nentity’s or developing company’s page where they\nhave information about the project.",
-      "type": "url",
-      "extraction_guidance": "Official website of the project or the managing\nentity’s or developing company’s page where they\nhave information about the project."
+    {
+      "data_column": "Website",
+      "response_type": "[URL]",
+      "extraction_needed": "Y",
+      "data_definition": "Official website of the project or the managing entity’s or developing company’s page where they have information about the project.",
+      "source_column": "Source Website",
+      "source_response_type": "[URL]",
+      "source_needed": "Y",
+      "archived_column": "Archived Source Website",
+      "archived_response_type": "[URL]",
+      "archive_needed": "N"
     },
-    "Logo": {
-      "description": "Official logo of the project or the managing entity’s if\nthere’s none available for the project itself.",
-      "type": "text",
-      "extraction_guidance": "Official logo of the project or the managing entity’s if\nthere’s none available for the project itself."
+    {
+      "data_column": "Logo",
+      "response_type": "[image]",
+      "extraction_needed": "Y",
+      "data_definition": "Official logo of the project or the managing entity’s if there’s none available for the project itself.",
+      "source_column": "Source Logo",
+      "source_response_type": "[URL]",
+      "source_needed": "Y",
+      "archived_column": "Archived Source Logo",
+      "archived_response_type": "[URL]",
+      "archive_needed": "N"
     },
-    "Mission Statement": {
-      "description": "Self-description of the project’s goal/mission from an\nofficial source.",
-      "type": "text",
-      "extraction_guidance": "Self-description of the project’s goal/mission from an\nofficial source."
+    {
+      "data_column": "Mission Statement",
+      "response_type": "[text]",
+      "extraction_needed": "Y",
+      "data_definition": "Self-description of the project’s goal/mission from an official source.",
+      "source_column": "Source Mission Statement",
+      "source_response_type": "[URL]",
+      "source_needed": "Y",
+      "archived_column": "Archived Source Mission Statement",
+      "archived_response_type": "[URL]",
+      "archive_needed": "N"
     },
-    "Project Announcement Date": {
-      "description": "The date the project was first publicly announced.\nIf no official announcement was made, the date of\nthe company's founding year will be used.",
-      "type": "year",
-      "extraction_guidance": "The date the project was first publicly announced.\nIf no official announcement was made, the date of\nthe company's founding year will be used."
+    {
+      "data_column": "Project Announcement Date",
+      "response_type": "[year]",
+      "extraction_needed": "Y",
+      "data_definition": "The date the project was first publicly announced. If no official announcement was made, the date of the company's founding year will be used.",
+      "source_column": "Source Project Announcement Date",
+      "source_response_type": "[URL]",
+      "source_needed": "Y",
+      "archived_column": "Archived Source Project Announcement Date",
+      "archived_response_type": "[URL]",
+      "archive_needed": "N"
     },
-    "Project Launch Date": {
-      "description": "If applicable, the date the first deliverable/product\nwent live.\nThe date can also refer to when the project first\nlaunched its beta version or a pilot version.",
-      "type": "year",
-      "extraction_guidance": "If applicable, the date the first deliverable/product\nwent live.\nThe date can also refer to when the project first\nlaunched its beta version or a pilot version."
+    {
+      "data_column": "Project Launch Date",
+      "response_type": "[year]",
+      "extraction_needed": "Y",
+      "data_definition": "If applicable, the date the first deliverable/product went live.\nThe date can also refer to when the project first launched its beta version or a pilot version.",
+      "source_column": "Source Project Launch Date",
+      "source_response_type": "[URL]",
+      "source_needed": "Y",
+      "archived_column": "Archived Source Project Launch Date",
+      "archived_response_type": "[URL]",
+      "archive_needed": "N"
     },
-    "Status": {
-      "description": "",
-      "type": "text",
-      "extraction_guidance": ""
+    {
+      "data_column": "Status",
+      "response_type": "[Options] {Announced, Pilot, Launched, Discontinued}",
+      "extraction_needed": "Y",
+      "data_definition": "Status could be:\n1. Announced: It has been publicly stated that the project is going to be developed.\n2. Pilot: currently in testing stages before being publicly launched more widely.\n3. Launched: it is already active and working.\n4. Discontinued: project was declared discontinued publicly.",
+      "source_column": "Source Status",
+      "source_response_type": "[URL]",
+      "source_needed": "Y",
+      "archived_column": "Archived Source Status",
+      "archived_response_type": "[URL]",
+      "archive_needed": "N"
     },
-    "Politically Involved?": {
-      "description": "Any government or state-affiliated entity that has an\naffiliation at a national, regional, municipal, or\ninternational level with the consortium through\nendorsement.\nEndorsement is defined as statements of support,\nadoption, funding, partnerships, formal\nrecommendations, branding, certifications or\nawards, or resource allocation.\nThese entities can be government agencies or\ninstitutions, state-owned enterprises,\nintergovernmental organizations, regional alliances,\netc.",
-      "type": "boolean",
-      "extraction_guidance": "Any government or state-affiliated entity that has an\naffiliation at a national, regional, municipal, or\ninternational level with the consortium through\nendorsement.\nEndorsement is defined as statements of support,\nadoption, funding, partnerships, formal\nrecommendations, branding, certifications or\nawards, or resource allocation.\nThese entities can be government agencies or\ninstitutions, state-owned enterprises,\nintergovernmental organizations, regional alliances,\netc."
+    {
+      "data_column": "Politically Involved?",
+      "response_type": "[Boolean] {true, false}",
+      "extraction_needed": "Y",
+      "data_definition": "Any government or state-affiliated entity that has an affiliation at a national, regional, municipal, or international level with the consortium through endorsement.\n\nEndorsement is defined as statements of support, adoption, funding, partnerships, formal recommendations, branding, certifications or awards, or resource allocation. These entities can be government agencies or institutions, state-owned enterprises, intergovernmental organizations, regional alliances, etc.",
+      "source_column": "Source Politically Involved?",
+      "source_response_type": "[URL]",
+      "source_needed": "Y",
+      "archived_column": "Archived Source Politically Involved?",
+      "archived_response_type": "[URL]",
+      "archive_needed": "N"
     },
-    "Tech Stack Descriptions": {
-      "description": "Self-description of the project regarding tech stack.",
-      "type": "text",
-      "extraction_guidance": "Self-description of the project regarding tech stack."
+    {
+      "data_column": "Tech Stack Descriptions",
+      "response_type": "[text]",
+      "extraction_needed": "Y",
+      "data_definition": "Self-description of the project regarding tech stack.",
+      "source_column": "Source Tech Stack Descriptions",
+      "source_response_type": "[URL]",
+      "source_needed": "Y",
+      "archived_column": "Archived Source Tech Stack Descriptions",
+      "archived_response_type": "[URL]",
+      "archive_needed": "N"
     },
-    "Public Code Repository": {
-      "description": "The URL of the project's public code repository,\nsuch as GitHub or GitLab.",
-      "type": "url",
-      "extraction_guidance": "The URL of the project's public code repository,\nsuch as GitHub or GitLab."
+    {
+      "data_column": "Public Code Repository",
+      "response_type": "[URL]",
+      "extraction_needed": "Y",
+      "data_definition": "The URL of the project's public code repository, such as GitHub or GitLab.",
+      "source_column": "Source Public Code Repository",
+      "source_response_type": "[URL]",
+      "source_needed": "Y",
+      "archived_column": "Archived Source Public Code Repository",
+      "archived_response_type": "[URL]",
+      "archive_needed": "N"
     },
-    "Does it use SSI Technology?": {
-      "description": "Defines if the project actively is using SSI\ntechnology.\nIt will be taken into consideration if there’s an\nexplicit mention of branding itself as an SSI project\nor using VC and/or DID, or other technical\ncomponents of SSI.",
-      "type": "boolean",
-      "extraction_guidance": "Defines if the project actively is using SSI\ntechnology.\nIt will be taken into consideration if there’s an\nexplicit mention of branding itself as an SSI project\nor using VC and/or DID, or other technical\ncomponents of SSI."
+    {
+      "data_column": "Does it use SSI Technology?",
+      "response_type": "[Boolean] {true, false}",
+      "extraction_needed": "Y",
+      "data_definition": "Defines if the project actively is using SSI technology. It will be taken into consideration if there’s an explicit mention of branding itself as an SSI project or using VC and/or DID, or other technical components of SSI.",
+      "source_column": "Source Does it use SSI Technology?",
+      "source_response_type": "[URL]",
+      "source_needed": "Y",
+      "archived_column": "Archived Source Does it use SSI Technology?",
+      "archived_response_type": "[URL]",
+      "archive_needed": "N"
     },
-    "Uses/endorses ZKP": {
-      "description": "Defines whether the project uses ZKP or if it\nendorses it.\nIn case there is no explicit information about the\nproject actively using ZKP or having an opinion\nabout it, “Failed to disclose” will be the response.",
-      "type": "text",
-      "extraction_guidance": "Defines whether the project uses ZKP or if it\nendorses it.\nIn case there is no explicit information about the\nproject actively using ZKP or having an opinion\nabout it, “Failed to disclose” will be the response."
+    {
+      "data_column": "Uses/endorses ZKP",
+      "response_type": "[Options] {True, False, Failed to disclose}",
+      "extraction_needed": "Y",
+      "data_definition": "Defines whether the project uses ZKP or if it endorses it. In case there is no explicit information about the project actively using ZKP or having an opinion about it, “Failed to disclose” will be the response.",
+      "source_column": "Source Uses/endorses ZKP",
+      "source_response_type": "[URL]",
+      "source_needed": "Y",
+      "archived_column": "Archived Source Uses/endorses ZKP",
+      "archived_response_type": "[URL]",
+      "archive_needed": "N"
     },
-    "DLT Data Availability": {
-      "description": "Indicates the amount of data available for the\nproject regarding DLT.\n1. Complete DLT Data: the project provides\npublic information about the technology or\ninstance used.\n2. Specifies DLT Technology but no DLT\nInstance: the project publicly states the use\nof Hyperledger, Tendermint, or R3 Corda,\nbut does not specify which instance.\n3. Uses DLT, no specifications: the project\npublicly states the use of DLT for the project,\nbut does not specify any technology or\ninstance.\n4. No DLT data at all: the project does not\npublicly state whether they use DLT.",
-      "type": "text",
-      "extraction_guidance": "Indicates the amount of data available for the\nproject regarding DLT.\n1. Complete DLT Data: the project provides\npublic information about the technology or\ninstance used.\n2. Specifies DLT Technology but no DLT\nInstance: the project publicly states the use\nof Hyperledger, Tendermint, or R3 Corda,\nbut does not specify which instance.\n3. Uses DLT, no specifications: the project\npublicly states the use of DLT for the project,\nbut does not specify any technology or\ninstance.\n4. No DLT data at all: the project does not\npublicly state whether they use DLT."
+    {
+      "data_column": "DLT Data Availability",
+      "response_type": "Complete DLT Data\nSpecifies DLT\nTechnology but no\nDLT Instance\nUses DLT, no\nspecifications\nNo DLT data at all",
+      "extraction_needed": "Y",
+      "data_definition": "Indicates the amount of data available for the project regarding DLT.\n1. Complete DLT Data: the project provides public information about the technology or instance used.\n2. Specifies DLT Technology but no DLT Instance: the project publicly states the use of Hyperledger, Tendermint, or R3 Corda, but does not specify which instance.\n3. Uses DLT, no specifications: the project publicly states the use of DLT for the project, but does not specify any technology or instance.\n4. No DLT data at all: the project does not publicly state whether they use DLT.",
+      "source_column": "Source DLT Data Availability",
+      "source_response_type": "[URL]",
+      "source_needed": "Y",
+      "archived_column": "Archived Source DLT Data Availability",
+      "archived_response_type": "[URL]",
+      "archive_needed": "N"
     },
-    "Has Exportable Credentials": {
-      "description": "Whether the project explicitly mentions the holder\ncan export their credentials.\nIf the project mentions it can only import and doesn’t\nspecify they can be exported “No” will be used. If\nno information about import/export is identified\n“Failed to disclose” will be used",
-      "type": "text",
-      "extraction_guidance": "Whether the project explicitly mentions the holder\ncan export their credentials.\nIf the project mentions it can only import and doesn’t\nspecify they can be exported “No” will be used. If\nno information about import/export is identified\n“Failed to disclose” will be used"
+    {
+      "data_column": "Has Exportable Credentials",
+      "response_type": "[Options] {True, False, Failed to disclose}",
+      "extraction_needed": "Y",
+      "data_definition": "Whether the project explicitly mentions the holder can export their credentials.\nIf the project mentions it can only import and doesn’t specify they can be exported “No” will be used. If no information about import/export is identified “Failed to disclose” will be used",
+      "source_column": "Source Has Exportable Credentials",
+      "source_response_type": "[URL]",
+      "source_needed": "Y",
+      "archived_column": "Archived Source Has Exportable Credentials",
+      "archived_response_type": "[URL]",
+      "archive_needed": "N"
     },
-    "Credential And Key Storage": {
-      "description": "The project explicitly mentions the holder has\nexclusive custody of the credentials and keys.\n“Failed to disclose” will be used whenever there is\nno information about the storage of credentials and\nkeys at all.",
-      "type": "text",
-      "extraction_guidance": "The project explicitly mentions the holder has\nexclusive custody of the credentials and keys.\n“Failed to disclose” will be used whenever there is\nno information about the storage of credentials and\nkeys at all."
+    {
+      "data_column": "Credential And Key Storage",
+      "response_type": "[Options] {True, False, Failed to disclose}",
+      "extraction_needed": "Y",
+      "data_definition": "The project explicitly mentions the holder has exclusive custody of the credentials and keys. “Failed to disclose” will be used whenever there is no information about the storage of credentials and\nkeys at all.",
+      "source_column": "Source Credential And Key Storage",
+      "source_response_type": "[URL]",
+      "source_needed": "Y",
+      "archived_column": "Archived Source Credential And Key Storage",
+      "archived_response_type": "[URL]",
+      "archive_needed": "N"
     },
-    "Targets Holders": {
-      "description": "Refers to the project having features for the use by\nholders, such as wallets.\n\n\"Failed to disclose\" will be selected if there is no\nclear indication whether the project is targeted\ntoward holders or not.",
-      "type": "text",
-      "extraction_guidance": "Refers to the project having features for the use by\nholders, such as wallets.\n\n\"Failed to disclose\" will be selected if there is no\nclear indication whether the project is targeted\ntoward holders or not."
+    {
+      "data_column": "Targets Holders",
+      "response_type": "[Options] {True, False, Failed to disclose}",
+      "extraction_needed": "Y",
+      "data_definition": "Refers to the project having features for the use by holders, such as wallets.\n\n\"Failed to disclose\" will be selected if there is no clear indication whether the project is targeted toward holders or not.",
+      "source_column": "Source Targets Holders",
+      "source_response_type": "[URL]",
+      "source_needed": "Y",
+      "archived_column": "Archived Source Targets Holders",
+      "archived_response_type": "[URL]",
+      "archive_needed": "N"
     },
-    "Targets Issuers": {
-      "description": "Refers to the project having features for the use by\nissuers, such as credential issuance solutions.\n\"Failed to disclose\" will be selected if there is no\nclear indication whether the project is targeted\ntoward issuers or not.",
-      "type": "text",
-      "extraction_guidance": "Refers to the project having features for the use by\nissuers, such as credential issuance solutions.\n\"Failed to disclose\" will be selected if there is no\nclear indication whether the project is targeted\ntoward issuers or not."
+    {
+      "data_column": "Targets Issuers",
+      "response_type": "[Options] {True, False, Failed to disclose}",
+      "extraction_needed": "Y",
+      "data_definition": "Refers to the project having features for the use by issuers, such as credential issuance solutions. \"Failed to disclose\" will be selected if there is no clear indication whether the project is targeted\ntoward issuers or not.",
+      "source_column": "Source Targets Issuers",
+      "source_response_type": "[URL]",
+      "source_needed": "Y",
+      "archived_column": "Archived Source Targets Issuers",
+      "archived_response_type": "[URL]",
+      "archive_needed": "N"
     },
-    "Targets Verifiers": {
-      "description": "Refers to the project having features for the use by\nVerifiers, such as QR readers.\n\"Failed to disclose\" will be selected if there is no\nclear indication whether the project is targeted\ntoward verifiers or not.",
-      "type": "text",
-      "extraction_guidance": "Refers to the project having features for the use by\nVerifiers, such as QR readers.\n\"Failed to disclose\" will be selected if there is no\nclear indication whether the project is targeted\ntoward verifiers or not."
+    {
+      "data_column": "Targets Verifiers",
+      "response_type": "[Options] {True, False, Failed to disclose}",
+      "extraction_needed": "Y",
+      "data_definition": "Refers to the project having features for the use by Verifiers, such as QR readers. \"Failed to disclose\" will be selected if there is no\nclear indication whether the project is targeted\ntoward verifiers or not.",
+      "source_column": "Source Targets Verifiers",
+      "source_response_type": "[URL]",
+      "source_needed": "Y",
+      "archived_column": "Archived Source Targets Verifiers",
+      "archived_response_type": "[URL]",
+      "archive_needed": "N"
     },
-    "Government relation": {
-      "description": "Name of the government or state-affiliated entity or\nentities that have an affiliation at a national,\nregional, municipal, or international level with the\nproject through endorsement, partnership, or are\nactively using the project's live services or\ntechnology.",
-      "type": "text",
-      "extraction_guidance": "Name of the government or state-affiliated entity or\nentities that have an affiliation at a national,\nregional, municipal, or international level with the\nproject through endorsement, partnership, or are\nactively using the project's live services or\ntechnology."
+    {
+      "data_column": "Government relation",
+      "response_type": "[entity name]",
+      "extraction_needed": "Y",
+      "data_definition": "Name of the government or state-affiliated entity or entities that have an affiliation at a national, regional, municipal, or international level with the project through endorsement, partnership, or are\nactively using the project's live services or technology.",
+      "source_column": "Source Government relation",
+      "source_response_type": "[URL]",
+      "source_needed": "Y",
+      "archived_column": "Archived Source Government relation",
+      "archived_response_type": "[URL]",
+      "archive_needed": "N"
     },
-    "Public Sector Funding": {
-      "description": "The project’s government or state-affiliated\nsponsors.",
-      "type": "text",
-      "extraction_guidance": "The project’s government or state-affiliated\nsponsors."
+    {
+      "data_column": "Public Sector Funding",
+      "response_type": "[entity name]",
+      "extraction_needed": "Y",
+      "data_definition": "The project’s government or state-affiliated sponsors.",
+      "source_column": "Source Public Sector Funding",
+      "source_response_type": "[URL]",
+      "source_needed": "Y",
+      "archived_column": "Archived Source Public Sector Funding",
+      "archived_response_type": "[URL]",
+      "archive_needed": "N"
     },
-    "Affiliated Entity / Partner": {
-      "description": "Name of the private entity or entities that have an\naffiliation with the project through a partnership,\nmembership, or vendor agreement, or are actively\nusing the project's live services or technology.\nNo government partners are included in this\nvariable.",
-      "type": "text",
-      "extraction_guidance": "Name of the private entity or entities that have an\naffiliation with the project through a partnership,\nmembership, or vendor agreement, or are actively\nusing the project's live services or technology.\nNo government partners are included in this\nvariable."
+    {
+      "data_column": "Affiliated Entity / Partner",
+      "response_type": "[entity name]",
+      "extraction_needed": "Y",
+      "data_definition": "Name of the private entity or entities that have an affiliation with the project through a partnership, membership, or vendor agreement, or are actively using the project's live services or technology. No government partners are included in this variable.",
+      "source_column": "Source Affiliated Entity / Partner",
+      "source_response_type": "[URL]",
+      "source_needed": "Y",
+      "archived_column": "Archived Source Affiliated Entity / Partner",
+      "archived_response_type": "[URL]",
+      "archive_needed": "N"
     },
-    "Private Sector Funding": {
-      "description": "The project’s corporate sponsors, such as\ncompanies, foundations, consortia, vendors,\nnongovernmental organizations, etc.",
-      "type": "text",
-      "extraction_guidance": "The project’s corporate sponsors, such as\ncompanies, foundations, consortia, vendors,\nnongovernmental organizations, etc."
+    {
+      "data_column": "Private Sector Funding",
+      "response_type": "[entity name]",
+      "extraction_needed": "Y",
+      "data_definition": "The project’s corporate sponsors, such as companies, foundations, consortia, vendors, nongovernmental organizations, etc.",
+      "source_column": "Source Private Sector Funding",
+      "source_response_type": "[URL]",
+      "source_needed": "Y",
+      "archived_column": "Archived Source Private Sector Funding",
+      "archived_response_type": "[URL]",
+      "archive_needed": "N"
     },
-    "Standard/Protocol Used": {
-      "description": "Whether the consortia enables technology that\nfollows any of the standards/protocols managed by\nthe consortia in the map or endorses their\nspecifications.\nMultiple can be listed.",
-      "type": "text",
-      "extraction_guidance": "Whether the consortia enables technology that\nfollows any of the standards/protocols managed by\nthe consortia in the map or endorses their\nspecifications.\nMultiple can be listed."
+    {
+      "data_column": "Standard/Protocol Used",
+      "response_type": "[standard/protocol]",
+      "extraction_needed": "Y",
+      "data_definition": "Whether the consortia enables technology that follows any of the standards/protocols managed by the consortia in the map or endorses their specifications. Multiple can be listed.",
+      "source_column": "Source Standard/Protocol Used",
+      "source_response_type": "[URL]",
+      "source_needed": "Y",
+      "archived_column": "Archived Source Standard/Protocol Used",
+      "archived_response_type": "[URL]",
+      "archive_needed": "N"
     },
-    "Blockchains / Verifiable Data Registries": {
-      "description": "Refers to the DLT the project uses. More than one\nwill be listed when applicable",
-      "type": "text",
-      "extraction_guidance": "Refers to the DLT the project uses. More than one\nwill be listed when applicable"
+    {
+      "data_column": "Blockchains / Verifiable Data Registries",
+      "response_type": "[text]",
+      "extraction_needed": "Y",
+      "data_definition": "Refers to the DLT the project uses. More than one will be listed when applicable",
+      "source_column": "Source Blockchains / Verifiable Data Registries",
+      "source_response_type": "[URL]",
+      "source_needed": "Y",
+      "archived_column": "Archived Source Blockchains / Verifiable Data Registries",
+      "archived_response_type": "[URL]",
+      "archive_needed": "N"
     },
-    "App Store Link": {
-      "description": "Links to the app store, browser application, or\ndesktop applications of the project's products.",
-      "type": "url",
-      "extraction_guidance": "Links to the app store, browser application, or\ndesktop applications of the project's products."
+    {
+      "data_column": "App Store Link",
+      "response_type": "[URL]",
+      "extraction_needed": "Y",
+      "data_definition": "Links to the app store, browser application, or desktop applications of the project's products.",
+      "source_column": "Source App Store Link",
+      "source_response_type": "[URL]",
+      "source_needed": "Y",
+      "archived_column": "Archived Source App Store Link",
+      "archived_response_type": "[URL]",
+      "archive_needed": "N"
     },
-    "Regulations Followed": {
-      "description": "Any national or regional regulation the product\nabides with related to SSI/DID/VC or privacy.",
-      "type": "text",
-      "extraction_guidance": "Any national or regional regulation the product\nabides with related to SSI/DID/VC or privacy."
+    {
+      "data_column": "Regulations Followed",
+      "response_type": "[regulation name]",
+      "extraction_needed": "Y",
+      "data_definition": "Any national or regional regulation the product abides with related to SSI/DID/VC or privacy.",
+      "source_column": "Source Regulations Followed",
+      "source_response_type": "[URL]",
+      "source_needed": "Y",
+      "archived_column": "Archived Source Regulations Followed",
+      "archived_response_type": "[URL]",
+      "archive_needed": "N"
     },
-    "Person of Interest": {
-      "description": "Notable members, employees, or advisors from the\nproject or managing entity.",
-      "type": "text",
-      "extraction_guidance": "Notable members, employees, or advisors from the\nproject or managing entity."
+    {
+      "data_column": "Person of Interest",
+      "response_type": "[person] [role] [entity name]",
+      "extraction_needed": "Y",
+      "data_definition": "Notable members, employees, or advisors from the project or managing entity.",
+      "source_column": "Source Person of Interest",
+      "source_response_type": "[URL]",
+      "source_needed": "Y",
+      "archived_column": "Archived Source Person of Interest",
+      "archived_response_type": "[URL]",
+      "archive_needed": "N"
     },
-    "Person of Interest Work Title": {
-      "description": "",
-      "type": "text",
-      "extraction_guidance": ""
+    {
+      "data_column": "Person of Interest Work Title",
+      "response_type": "[designation]",
+      "extraction_needed": "Y",
+      "data_definition": "Notable member designation or work title",
+      "source_column": "Source Person of Interest Work Title",
+      "source_response_type": "[URL]",
+      "source_needed": "Y",
+      "archived_column": "Archived Source Person of Interest Work Title",
+      "archived_response_type": "[URL]",
+      "archive_needed": "N"
     },
-    "Managing Entity": {
-      "description": "Name of the legal entity or entities in charge of\noperating the project.",
-      "type": "text",
-      "extraction_guidance": "Name of the legal entity or entities in charge of\noperating the project."
+    {
+      "data_column": "Managing Entity",
+      "response_type": "[entity name]",
+      "extraction_needed": "Y",
+      "data_definition": "Name of the legal entity or entities in charge of operating the project.",
+      "source_column": "Source Managing Entity",
+      "source_response_type": "[URL]",
+      "source_needed": "Y",
+      "archived_column": "Archived Source Managing Entity",
+      "archived_response_type": "[URL]",
+      "archive_needed": "N"
     },
-    "Announcement Repositories / News": {
-      "description": "Active social media, blog page, news feed, or any\nother page that provides information about the\nproject’s updates.",
-      "type": "url",
-      "extraction_guidance": "Active social media, blog page, news feed, or any\nother page that provides information about the\nproject’s updates."
+    {
+      "data_column": "Announcement Repositories / News",
+      "response_type": "[URL]",
+      "extraction_needed": "Y",
+      "data_definition": "Active social media, blog page, news feed, or any other page that provides information about the project’s updates.",
+      "source_column": "Source Announcement Repositories / News",
+      "source_response_type": "[URL]",
+      "source_needed": "Y",
+      "archived_column": "Archived Source Announcement Repositories / News",
+      "archived_response_type": "[URL]",
+      "archive_needed": "N"
     },
-    "Derived Products": {
-      "description": "SSI products that:\nderive from the main project listed on the Web of\nTrust Map.",
-      "type": "text",
-      "extraction_guidance": "SSI products that:\nderive from the main project listed on the Web of\nTrust Map."
+    {
+      "data_column": "Derived Products",
+      "response_type": "[product name]",
+      "extraction_needed": "N",
+      "data_definition": "SSI products that: derive from the main project listed on the Web of\nTrust Map.",
+      "source_column": "Source Derived Products",
+      "source_response_type": "[URL]",
+      "source_needed": "N",
+      "archived_column": "Archived Source Derived Products",
+      "archived_response_type": "[URL]",
+      "archive_needed": "N"
     },
-    "Utility integration with SSI platforms": {
-      "description": "Platforms, wallets, or services from other parts of\nthe SSI ecosystem that the project is interoperable\nwith. Does not refer to full interoperability but can be\nsmaller aspects, such as wallets announcing\nportability of each other's credential exports.",
-      "type": "text",
-      "extraction_guidance": "Platforms, wallets, or services from other parts of\nthe SSI ecosystem that the project is interoperable\nwith. Does not refer to full interoperability but can be\nsmaller aspects, such as wallets announcing\nportability of each other's credential exports."
+    {
+      "data_column": "Utility integration with SSI platforms",
+      "response_type": "[product name]",
+      "extraction_needed": "Y",
+      "data_definition": "Platforms, wallets, or services from other parts of the SSI ecosystem that the project is interoperable with. Does not refer to full interoperability but can be smaller aspects, such as wallets announcing portability of each other's credential exports.",
+      "source_column": "Source Utility integration with SSI platforms",
+      "source_response_type": "[URL]",
+      "source_needed": "Y",
+      "archived_column": "Archived Source Utility integration with SSI platforms",
+      "archived_response_type": "[URL]",
+      "archive_needed": "N"
     },
-    "Utility Integration with Non-SSI Platforms": {
-      "description": "Platforms, wallets, or services in which the project is\nintegrated in, which aren’t SSI.\nNot all platforms, wallets, or services the project is\nintegrated with were included in the research, as\nthis was not a primary focus. Instead, a few\nrepresentative examples were added.\nExample: Alice's SSI wallets single sign on solution\nis used by Bobs Non-SSI LLC.",
-      "type": "text",
-      "extraction_guidance": "Platforms, wallets, or services in which the project is\nintegrated in, which aren’t SSI.\nNot all platforms, wallets, or services the project is\nintegrated with were included in the research, as\nthis was not a primary focus. Instead, a few\nrepresentative examples were added.\nExample: Alice's SSI wallets single sign on solution\nis used by Bobs Non-SSI LLC."
+    {
+      "data_column": "Utility Integration with Non-SSI Platforms",
+      "response_type": "[product name]",
+      "extraction_needed": "Y",
+      "data_definition": "Platforms, wallets, or services in which the project is integrated in, which aren’t SSI. Not all platforms, wallets, or services the project is\nintegrated with were included in the research, as this was not a primary focus. Instead, a few representative examples were added.\nExample: Alice's SSI wallets single sign on solution is used by Bobs Non-SSI LLC.",
+      "source_column": "Source Utility Integration with Non-SSI Platforms",
+      "source_response_type": "[URL]",
+      "source_needed": "Y",
+      "archived_column": "Archived Source Utility Integration with Non-SSI Platforms",
+      "archived_response_type": "[URL]",
+      "archive_needed": "N"
     },
-    "Geographical Focus": {
-      "description": "Refers to the country or countries the project is\nfocusing its implementation in.\nA project will be considered international if it has\nthree or more countries as a geographical focus",
-      "type": "text",
-      "extraction_guidance": "Refers to the country or countries the project is\nfocusing its implementation in.\nA project will be considered international if it has\nthree or more countries as a geographical focus"
+    {
+      "data_column": "Geographical Focus",
+      "response_type": "[country]",
+      "extraction_needed": "Y",
+      "data_definition": "Refers to the country or countries the project is focusing its implementation in. A project will be considered international if it has\nthree or more countries as a geographical focus",
+      "source_column": "Source Geographical Focus",
+      "source_response_type": "[URL]",
+      "source_needed": "Y",
+      "archived_column": "Archived Source Geographical Focus",
+      "archived_response_type": "[URL]",
+      "archive_needed": "N"
     }
-  }
+  ]
 }

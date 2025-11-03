@@ -122,13 +122,24 @@ def _fetch(url: str, timeout=10) -> Page:  # Reduced timeout from 15s to 10s for
         Page: Page object with url, status, mime, and extracted text
     
     Note:
-        Uses a user-agent string to appear as a regular browser.
+        Uses realistic browser headers to avoid bot detection and blocking.
         Only processes text/html and JSON content types.
     """
     try:
-        # Use a browser-like user agent to avoid blocking
+        # Use realistic browser headers to avoid 403 Forbidden / bot blocking
+        # Modern Chrome on Windows headers that look like a real browser
         headers = {
-            "User-Agent": "Mozilla/5.0 (compatible; wot-poc/1.0; +https://example.local)"
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Accept-Encoding": "gzip, deflate, br",
+            "DNT": "1",
+            "Connection": "keep-alive",
+            "Upgrade-Insecure-Requests": "1",
+            "Sec-Fetch-Dest": "document",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "none",
+            "Cache-Control": "max-age=0",
         }
         
         # Make HTTP GET request

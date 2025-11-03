@@ -50,15 +50,18 @@ def _build_ai_df(headers: List[str], recs: List[Dict[str, Any]], all_headers: Li
         recs: List of extracted records (dictionaries)
         all_headers: Optional full list of headers including source columns
     """
-    # Fields that are allowed to have "Failed to disclose" per data definitions
-    allowed_failed_to_disclose_fields = {
+    # Load allowed fields from prompts.json config
+    from app.config.codebook import load_prompts
+    prompts_config = load_prompts()
+    allowed_failed_to_disclose_fields_list = prompts_config.get("allowed_failed_to_disclose_fields", [
         "Uses/endorses ZKP",
         "Has Exportable Credentials",
         "Credential And Key Storage",
         "Targets Holders",
         "Targets Issuers",
         "Targets Verifiers",
-    }
+    ])
+    allowed_failed_to_disclose_fields = set(allowed_failed_to_disclose_fields_list)
     
     # If all_headers provided, include source columns; otherwise just data columns
     output_headers = all_headers if all_headers else headers
@@ -67,8 +70,13 @@ def _build_ai_df(headers: List[str], recs: List[Dict[str, Any]], all_headers: Li
     for r in recs:
         row = {}
         
-        # Process data columns (extracted values)
-        for h in headers:
+        # Process ALL data columns from records (not just headers from extraction)
+        # This ensures fields like Product Name (extraction_needed=N) are included
+        for h in output_headers:
+            if h.startswith("Live Source ") or h.startswith("Archived Source ") or h.startswith("Source "):
+                # Source columns are handled later
+                continue
+            # Get value from record
             val = _norm(r.get(h, ""))
             # Final safety check: Remove "Failed to disclose" from fields that don't allow it
             if val.lower() == "failed to disclose" and h not in allowed_failed_to_disclose_fields:
@@ -84,10 +92,12 @@ def _build_ai_df(headers: List[str], recs: List[Dict[str, Any]], all_headers: Li
                 field_name = e.get("field", "")
                 source_url = e.get("source_url", "")
                 if field_name and source_url:
-                    # Map to "Live Source [Field Name]" column
-                    live_source_col = f"Live Source {field_name}"
-                    if live_source_col in output_headers:
-                        evidence_by_field[live_source_col] = source_url
+                    # Try different source column naming patterns
+                    # New codebook uses "Source [Field Name]", old used "Live Source [Field Name]"
+                    for col_pattern in [f"Source {field_name}", f"Live Source {field_name}"]:
+                        if col_pattern in output_headers:
+                            evidence_by_field[col_pattern] = source_url
+                            break
         
         # Add source columns (populate from evidence or leave empty)
         for h in output_headers:
@@ -240,7 +250,8 @@ def _build_comparison(df_input: pd.DataFrame, df_ai: pd.DataFrame, headers: List
             - AI Value: AI-extracted value
             - Match?: ✓ if match, empty if not
     """
-    nm_col = name_header(headers)
+    # Use Product Name from input columns (not from headers which might not include it)
+    nm_col = name_header(df_input.columns.tolist())
 
     left = df_input.copy()
     left[nm_col] = left[nm_col].apply(_norm)
@@ -256,7 +267,8 @@ def _build_comparison(df_input: pd.DataFrame, df_ai: pd.DataFrame, headers: List
         project = _norm(rec[nm_col])
         for h in headers:
             # Skip source fields from comparison (they're not data columns)
-            if "Live Source" in h or "Archived Source" in h:
+            # Support both old ("Live Source") and new ("Source") naming conventions
+            if "Live Source" in h or "Archived Source" in h or h.startswith("Source "):
                 continue
             # Skip ID field - it's an internal identifier, not extracted data
             if h.strip() == "ID":

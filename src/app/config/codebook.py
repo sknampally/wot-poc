@@ -83,30 +83,34 @@ class Codebook:
     Codebook dataclass containing all field definitions and normalization rules.
     
     Attributes:
+        fields: List of field definitions from new codebook structure, each containing:
+            - data_column: Field name (e.g., "Mission Statement")
+            - response_type: Expected response type (e.g., "[text]", "[year]")
+            - extraction_needed: Whether to extract this field (Y/N)
+            - data_definition: LLM prompt rules / extraction guidance
+            - source_column: Source URL column name (e.g., "Source Mission Statement")
+            - source_needed: Whether to track source for this field (Y/N)
+            - archived_column: Archived source column name
+            - archive_needed: Whether to archive source (Y/N)
         status_enums: List of valid status values (e.g., ["Announced", "Pilot", ...])
         ternary_enums: List of valid ternary values (e.g., ["True", "False", "Failed to disclose"])
         year_fields: List of field names that contain year/date information
         normalize: Normalization maps for status and ternary fields
         field_synonyms: Alternative names for fields (for fuzzy matching)
-        field_definitions: Detailed field definitions from Excel, including:
-            - description: What the field means
-            - type: Field type (text, boolean, year, url, status)
-            - extraction_guidance: Instructions for LLM on how to extract
-            - possible_values: Valid values for enum fields
-            - live_source_hint: Where to find this data (for reference)
-            - archived_source_hint: Historical source (for reference)
     """
+    fields: List[Dict[str, Any]] = field(default_factory=list)
     status_enums: List[str] = field(default_factory=lambda: list(_DEFAULT_STATUS_ENUMS))
     ternary_enums: List[str] = field(default_factory=lambda: list(_DEFAULT_TERNARY_ENUMS))
     year_fields: List[str] = field(default_factory=lambda: list(_DEFAULT_YEAR_FIELDS))
     normalize: Dict[str, Dict[str, str]] = field(default_factory=lambda: dict(_DEFAULT_NORMALIZE))
     field_synonyms: Dict[str, List[str]] = field(default_factory=lambda: dict(_DEFAULT_FIELD_SYNONYMS))
-    field_definitions: Dict[str, Dict[str, Any]] = field(default_factory=dict)
 
     @staticmethod
     def from_dict(d: Dict[str, Any]) -> "Codebook":
         """
         Create a Codebook instance from a dictionary (loaded from JSON).
+        
+        Supports both old format (status_enums, field_definitions) and new format (fields).
         
         Args:
             d: Dictionary with codebook data
@@ -114,14 +118,26 @@ class Codebook:
         Returns:
             Codebook: New Codebook instance with data from dict
         """
-        return Codebook(
-            status_enums=list(d.get("status_enums", _DEFAULT_STATUS_ENUMS) or _DEFAULT_STATUS_ENUMS),
-            ternary_enums=list(d.get("ternary_enums", _DEFAULT_TERNARY_ENUMS) or _DEFAULT_TERNARY_ENUMS),
-            year_fields=list(d.get("year_fields", _DEFAULT_YEAR_FIELDS) or _DEFAULT_YEAR_FIELDS),
-            normalize=dict(d.get("normalize", _DEFAULT_NORMALIZE) or _DEFAULT_NORMALIZE),
-            field_synonyms=dict(d.get("field_synonyms", _DEFAULT_FIELD_SYNONYMS) or _DEFAULT_FIELD_SYNONYMS),
-            field_definitions=dict(d.get("field_definitions", {}) or {}),
-        )
+        # New format (v2.0+) has 'fields' array
+        if "fields" in d:
+            return Codebook(
+                fields=list(d.get("fields", [])),
+                status_enums=list(d.get("status_enums", _DEFAULT_STATUS_ENUMS) or _DEFAULT_STATUS_ENUMS),
+                ternary_enums=list(d.get("ternary_enums", _DEFAULT_TERNARY_ENUMS) or _DEFAULT_TERNARY_ENUMS),
+                year_fields=list(d.get("year_fields", _DEFAULT_YEAR_FIELDS) or _DEFAULT_YEAR_FIELDS),
+                normalize=dict(d.get("normalize", _DEFAULT_NORMALIZE) or _DEFAULT_NORMALIZE),
+                field_synonyms=dict(d.get("field_synonyms", _DEFAULT_FIELD_SYNONYMS) or _DEFAULT_FIELD_SYNONYMS),
+            )
+        # Old format - convert to new format for backwards compatibility
+        else:
+            return Codebook(
+                fields=[],  # Old format didn't have fields array
+                status_enums=list(d.get("status_enums", _DEFAULT_STATUS_ENUMS) or _DEFAULT_STATUS_ENUMS),
+                ternary_enums=list(d.get("ternary_enums", _DEFAULT_TERNARY_ENUMS) or _DEFAULT_TERNARY_ENUMS),
+                year_fields=list(d.get("year_fields", _DEFAULT_YEAR_FIELDS) or _DEFAULT_YEAR_FIELDS),
+                normalize=dict(d.get("normalize", _DEFAULT_NORMALIZE) or _DEFAULT_NORMALIZE),
+                field_synonyms=dict(d.get("field_synonyms", _DEFAULT_FIELD_SYNONYMS) or _DEFAULT_FIELD_SYNONYMS),
+            )
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -131,13 +147,38 @@ class Codebook:
             Dict[str, Any]: Dictionary representation of codebook
         """
         return {
+            "version": "2.0",
+            "fields": self.fields,
             "status_enums": self.status_enums,
             "ternary_enums": self.ternary_enums,
             "year_fields": self.year_fields,
             "normalize": self.normalize,
             "field_synonyms": self.field_synonyms,
-            "field_definitions": self.field_definitions,
         }
+    
+    def get_field(self, data_column: str) -> Dict[str, Any] | None:
+        """
+        Get a field definition by data column name.
+        
+        Args:
+            data_column: Field name (e.g., "Mission Statement")
+        
+        Returns:
+            Dict with field definition or None if not found
+        """
+        for field in self.fields:
+            if field.get("data_column") == data_column:
+                return field
+        return None
+    
+    def get_data_columns_needed(self) -> List[str]:
+        """
+        Get list of data columns that need extraction (extraction_needed == "Y").
+        
+        Returns:
+            List of field names to extract
+        """
+        return [f.get("data_column") for f in self.fields if f.get("extraction_needed", "N") == "Y"]
 
 
 # ---------- File helpers ----------
@@ -222,3 +263,21 @@ def load_codebook() -> Codebook:
     cb = Codebook()
     _write_json(jsn, cb.to_dict())
     return cb
+
+
+def load_prompts() -> Dict[str, Any]:
+    """
+    Load field-specific prompts from data/prompts.json.
+    
+    Returns:
+        Dict with prompt templates and field hints
+    """
+    prompts_path = _project_root() / "data" / "prompts.json"
+    if prompts_path.exists():
+        try:
+            return _load_json(prompts_path)
+        except Exception:
+            pass
+    
+    # Return empty dict if file doesn't exist or can't be parsed
+    return {}

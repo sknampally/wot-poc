@@ -1,0 +1,108 @@
+{
+  "version": "1.0",
+  "system_prompt": "You are a precise data extraction assistant specializing in digital identity and SSI projects.\nYou extract structured information from web sources.\nYou must ONLY use information explicitly found in the provided context.\nBe thorough - search all provided URLs and text.\nCRITICAL: Only 6-7 specific fields allow 'Failed to disclose' as a value.\nFor all other fields, use empty string (\"\") if information is not found.\nFollow the field-specific value constraints in the user prompt exactly.",
+  
+  "user_prompt_template": "You are extracting structured data about a digital identity project from web sources.\nReturn ONLY one JSON object enclosed in <JSON>...</JSON>.\n\nCRITICAL RULES:\n1. Set 'Product Name' exactly to: `{project_name}`\n2. Website field: Extract the main/official website URL from the context. Look for the homepage URL.\n3. Mission Statement: Extract the COMPLETE mission statement from official sources.\n{field_specific_guidance}\n4. Status: Use ONLY these values: {status_enums}. Look for words like 'launched', 'pilot', 'announced', 'live', 'production'.\n5. Ternary fields (yes/no questions): Must be one of: {ternary}. Look for explicit mentions.\n   CRITICAL FOR 'Politically Involved?' FIELD:\n   - Scan the ENTIRE context for ANY mention of: 'government', 'state', 'public sector', 'Citizens & Governments', 'government agency', 'government clients', 'eIDAS', 'European regulations', 'government services', 'government programmes', 'national ID', 'public services'\n   - If you find ANY of these terms OR see government listed as a use case/client/partner, set this field to 'True'\n   - Examples that indicate 'True': 'Citizens & Governments' in use cases, 'Government agency' in partner list, mentions of eIDAS (European government regulation), 'government services' sector\n   - Only use 'False' if you search thoroughly and find NO government-related mentions anywhere\n6. Dates: Extract 4-digit years (YYYY format). CRITICAL RULES FOR DATES:\n   - For 'Announcement Date': Search for the FIRST time the project was publicly announced\n     Look for: 'founded in', 'established', 'announced', 'first introduced', company founding date\n     Check the OLDEST blog posts, press releases, or company history pages\n   - For 'Launch Date': Search for when the product FIRST became available to users\n     Look for: 'launched', 'went live', 'beta release', 'first version', 'general availability (GA)', 'public release'\n   - IMPORTANT: Do NOT use:\n     * Recent blog post dates (these are when posts were published, not launch dates)\n     * Feature announcement dates (these are when features were added, not the original launch)\n     * Conference presentation dates\n   - If you find multiple dates, use the EARLIEST one\n   - If the date is explicitly stated (e.g., 'founded in 2021'), use that exact year\n7. Technology fields: Look for mentions of SSI, DLT, blockchain, verifiable credentials, ZKP (zero-knowledge proofs).\n8. When information is NOT found in the context after careful search, use 'Failed to disclose'.\n9. Every extracted value (non-empty field) MUST include an evidence entry in _evidence array with:\n   - field: the field name\n   - value: the extracted value\n   - source_url: the URL where you found it\n   - source_type: 'webpage'\n   - confidence: 'high', 'medium', or 'low'\n\nEXTRACTION STRATEGY:\n1. Start with homepage URLs - they often contain mission, status, overview\n2. Check 'About Us' / 'Mission' pages for company descriptions\n3. Review technical documentation for technology fields\n4. Search blog/news for dates and announcements\n5. Look for explicit mentions rather than inferring\n6. For dates: Search for announcement/launch dates in blog posts, press releases, or company history. Extract the year when the project was first announced or launched. Look for explicit date mentions.\n7. For mission statements: Check FAQ pages, About Us pages, and homepage before blog content\n8. For code repositories: Look for 'GitHub', 'GitLab', 'code repository', or 'source code' mentions\n\nFIELD-SPECIFIC GUIDANCE:\n{field_guidance}\n\nIMPORTANT: Search the ENTIRE context thoroughly. Official website content is most reliable.\n\nCRITICAL VALUE CONSTRAINTS - READ CAREFULLY:\nONLY these 6 fields allow 'Failed to disclose' as a value:\n  1. Uses/endorses ZKP\n  2. Has Exportable Credentials\n  3. Credential And Key Storage\n  4. Targets Holders\n  5. Targets Issuers\n  6. Targets Verifiers\n\nFOR ALL OTHER FIELDS:\n- If information is NOT found, use empty string (\"\") NOT 'Failed to disclose'\n- Examples of fields that MUST use empty string if not found:\n  * Logo, Mission Statement, Website, Public Code Repository → empty string if not found\n  * Affiliated Entity / Partner, Private Sector Funding, Managing Entity → empty string if not found\n  * App Store Link, Blockchains / Verifiable Data Registries → empty string if not found\n  * ALL date fields, ALL URL fields, ALL text fields (except the 6 above) → empty string if not found\n\nFIELD TYPE CONSTRAINTS:\n- Boolean/ternary fields: Must be one of {ternary} only (True, False, or Failed to disclose)\n- Status fields: Must be one of {status_enums} only (Announced, Pilot, Launched, Discontinued)\n- URL fields: Extract full URL or use empty string, NEVER 'Failed to disclose'\n- Year/Date fields: Extract YYYY year or use empty string, NEVER 'Failed to disclose'\n- Regular text fields: Extract actual text value or use empty string, NEVER 'Failed to disclose' (unless it's one of the 6 allowed fields)\n\nExtract real values when found. Follow the value constraints STRICTLY. Using 'Failed to disclose' in wrong fields will be rejected.",
+  
+  "fallback_hints": [
+    "Mission Statement: Extract the COMPLETE mission statement from official sources. Look in 'About Us', 'Mission', 'What We Do', FAQ pages, or homepage hero sections. Extract the full statement, not partial text. Prioritize official company descriptions over blog content.",
+    "Status: Use ONLY these values: {status_enums}. Look for 'launched', 'live', 'in production', 'general availability (GA)', 'pilot', 'beta', 'announced'. Check homepage, product pages, announcements.",
+    "Tech Stack: Extract detailed technology descriptions from technical docs, developer pages, architecture docs.",
+    "Dates: Extract as 4-digit year (YYYY). Search press releases, blog announcements, news articles.",
+    "SSI Technology: Look for explicit mentions of SSI, self-sovereign identity, decentralized identity, DIDs, VCs.",
+    "ZKP: Look for mentions of zero-knowledge proofs, zk-SNARKs, zk-STARKs, privacy-preserving proofs.",
+    "Credential Storage: Look for wallet storage, key management, user-controlled keys, cloud storage, HSM.",
+    "Funding: Search for 'funding', 'investment', 'raised', 'series', 'seed round', 'venture capital', 'VC', 'investors', 'backers' in news, press releases, 'About Us', blog posts, and investor relations pages. Extract specific funding amounts, rounds (Seed, Series A/B/C), investor names, and dates when mentioned.",
+    "Partners/Affiliated Entities: Look for 'partners', 'partnerships', 'affiliated', 'collaboration', 'alliance', 'integrated with', 'works with' in homepage, 'About Us', 'Partners', 'Ecosystem', or press release pages. Extract partner/entity names when explicitly listed.",
+    "Regulations: Look for GDPR, eIDAS, PSD2, ISO standards, SOC 2 mentions.",
+    "Standards/Protocols: Look for W3C (DID, VC, OAuth, OpenID), ISO standards, blockchain protocols."
+  ],
+  
+  "allowed_failed_to_disclose_fields": [
+    "Uses/endorses ZKP",
+    "Has Exportable Credentials",
+    "Credential And Key Storage",
+    "Targets Holders",
+    "Targets Issuers",
+    "Targets Verifiers"
+  ],
+  
+  "excluded_domains": [
+    "youtube.com",
+    "facebook.com",
+    "twitter.com",
+    "x.com",
+    ".reviews",
+    "linkedin.com",
+    "reddit.com",
+    "archive.",
+    "podcasts.apple.com"
+  ],
+  
+  "exclude_keywords": [
+    "career",
+    "jobs",
+    "hiring",
+    "recruit",
+    "position",
+    "vacancy",
+    "apply now",
+    "download",
+    ".pdf",
+    ".zip",
+    ".exe",
+    ".dmg",
+    "cookie policy",
+    "privacy policy",
+    "terms of service",
+    "legal notice",
+    "sitemap",
+    "robots.txt"
+  ],
+  
+  "field_hints": {
+    "mission": "CRITICAL: Extract the EXACT mission statement word-for-word from official sources. The mission can be SHORT (1-5 words like 'Enforcing Information Security') or LONG (full sentences). Look for: sentences starting with action verbs ('To give', 'To enable', 'Our mission is'), SHORT taglines/headings describing purpose, or full paragraphs explaining WHY (not WHAT). PRIORITIZE: homepage hero/taglines, page titles/headers, 'About Us' first paragraph, 'Mission' pages. Extract EXACT text - do NOT paraphrase, expand, translate, or add context. If mission is short (e.g., 'Enforcing Information Security'), extract exactly that - do NOT extract a longer description. AVOID: product features, company histories, job descriptions, wrong language text, marketing paragraphs. The mission is often in page headers, taglines, or the first sentence of About Us.",
+    
+    "funding": "CRITICAL: Look for investment announcements, funding rounds, investor mentions, or venture capital backing. Search: press releases, news articles, 'About Us' pages, 'Investors' page, 'Backers' page, Crunchbase links, or funding announcement blog posts. Extract the full investor/backer organization name (e.g., 'Outlier Ventures Operations Ltd (Outlier Ventures)'). For Private Sector Funding, look for venture capital firms, companies, foundations, consortia, or corporate sponsors.",
+    
+    "partner_affiliated": "CRITICAL: Look for partner/ecosystem pages, collaboration announcements, or integration mentions. Check: 'Partners' page, 'Ecosystem' page, 'Integrations' page, 'Collaborations' page, homepage mentions, About Us, or press releases. Extract the full partner/entity name (including organization name if mentioned, e.g., 'Dock Labs AG (Dock)').",
+    
+    "repository_code": "CRITICAL: Look for GitHub, GitLab, or other code repository links. Check: footer links (often at bottom of pages), 'View Source' buttons, developer pages, documentation pages, README files, 'Contribute' sections, 'Open Source' pages, or 'Developer Resources'. The URL format is: https://github.com/[org]/[repo] or https://gitlab.com/[org]/[repo]. Also search page text for mentions like 'source code available at', 'repository', 'github.com/[org]'. Extract the FULL repository URL including https://.",
+    
+    "politically_government": "CRITICAL: Look for ANY mention of government, state, or political entity involvement. Check: 'Government' section, 'Partners' page, press releases, 'Use Cases', case studies, news articles. Look for: 'government partnership', 'government project', 'used by government', 'government adoption', 'government entity', 'state-affiliated', 'endorsed by government', 'government funding', 'government contract', 'government case study', 'government use case', 'Citizens & Governments', 'government agency', 'government clients', 'government services', 'eIDAS', 'European regulations', 'government programmes'. If ANY government entity is mentioned as partner, user, client, involved in use cases, or supporting regulations like eIDAS, use 'True'. Only use 'False' if explicitly stated as private-sector only with no government involvement whatsoever.",
+    
+    "managing_entity": "CRITICAL: Look for the organization that manages/runs the project. Check: 'About Us' page (often mentions the foundation, company, or organization behind the project), footer (may show '© [Organization Name]'), legal pages, 'Who We Are' pages, company registration pages, or terms of service. Search for: 'Foundation', 'Limited', 'Inc', 'Corp', 'LLC', 'Ltd', company registration number, or legal entity name. Extract the FULL legal entity name if available (e.g., 'Cheqd Foundation Limited (Cheqd)' or just 'Cheqd Foundation Limited' if that's what's stated). If only a company name is mentioned without legal suffix, include it. If multiple names are given (legal name and common name), use format: 'Legal Name (Common Name)'.",
+    
+    "app_store": "CRITICAL: Look for app store links or application download links. Check: 'Download' page, 'Get Started' page, footer links, product pages, or developer pages. Look for URLs like 'https://creds.xyz', 'https://apps.apple.com', 'https://play.google.com', or direct application URLs. Extract the full URL.",
+    
+    "exportable_credentials": "CRITICAL: Look for explicit mentions of credential export functionality. Search for: 'export credentials', 'download credentials', 'backup credentials', 'export wallet', or documentation about credential management. If the project mentions users can export/download their credentials, use 'True'. If it only mentions import but not export, use 'False'. If no information found, use 'Failed to disclose'.",
+    
+    "credential_key_storage": "CRITICAL: Look for information about where credentials and keys are stored. Search for: 'user-controlled keys', 'exclusive custody', 'wallet storage', 'HSM', 'cloud storage', 'user custody', 'key management'. If project mentions user has exclusive custody of credentials/keys, use 'True'. If it mentions custodial or third-party storage, use 'False'. If no information found, use 'Failed to disclose'.",
+    
+    "zkp_zero_knowledge": "CRITICAL: Look for mentions of zero-knowledge proofs (ZKP). Search for: 'zero-knowledge proofs', 'ZKP', 'zk-SNARKs', 'zk-STARKs', 'privacy-preserving proofs', 'anonymous credentials'. Check technical documentation, whitepapers, architecture docs, or feature pages. If project uses or endorses ZKP technology, use 'True'. If it does not use ZKP, use 'False'. If no information found about ZKP usage, use 'Failed to disclose'.",
+    
+    "targets_holders": "CRITICAL: Look for features or products for holders/users. Search for: 'wallet', 'holder', 'user wallet', 'mobile wallet', 'digital wallet', 'credential wallet', 'identity wallet', 'hold credentials', 'store credentials'. Check product pages, features, or developer documentation. If project offers wallet or holder features, use 'True'. If no holder features mentioned, use 'False'. If unclear whether project targets holders, use 'Failed to disclose'.",
+    
+    "targets_issuers": "CRITICAL: Look for features or products for issuers. Search for: 'issuer', 'issue credentials', 'credential issuance', 'issuer tools', 'issuer platform', 'credential creation'. Check product pages, features, or developer documentation. If project offers issuer/credential creation features, use 'True'. If no issuer features mentioned, use 'False'. If unclear whether project targets issuers, use 'Failed to disclose'.",
+    
+    "targets_verifiers": "CRITICAL: Look for features or products for verifiers. Search for: 'verifier', 'verify credentials', 'QR reader', 'scan', 'verification tools', 'credential verification'. Check product pages, features, or developer documentation. If project offers verification features, use 'True'. If no verifier features mentioned, use 'False'. If unclear whether project targets verifiers, use 'Failed to disclose'.",
+    
+    "blockchain_registry": "CRITICAL: Look for which blockchain or verifiable data registry the project uses. Check: technical documentation, architecture docs, 'Technology' page, developer docs, or whitepapers. Look for mentions of specific blockchains like 'Cheqd', 'Hyperledger Indy', 'Ethereum', 'Polygon', or registry names. Extract the specific blockchain/registry name.",
+    
+    "tech_stack": "Extract detailed technology descriptions from technical documentation, developer pages, architecture docs, or product pages."
+  },
+  
+  "type_hints": {
+    "url_image_empty": "CRITICAL: If URL not found, use empty string (\"\"). Do NOT use 'Failed to disclose'.",
+    
+    "year_announcement": "CRITICAL: Extract the FIRST/EARLIEST announcement year (YYYY format, 4 digits only). Search ALL pages for: 'founded in [YEAR]', 'established in [YEAR]', 'announced in [YEAR]', 'company history', 'our story', 'project announcement', 'first introduced'. Check the oldest blog posts, press releases, or company timeline pages. FILTER OUT: dates before 2000 (likely unrelated company history), dates after current year (future dates), copyright years, page last-updated dates. Use the original project/company founding/announcement date. If you see 'founded 2021' and 'announced features in 2023', use 2021. If no valid project-related date found (only unrelated old dates), use empty string.",
+    
+    "year_launch": "CRITICAL: Extract the FIRST/EARLIEST launch year (YYYY format, 4 digits only). Look for when the product FIRST became available. Search for: 'launched in [YEAR]', 'went live in [YEAR]', 'beta release [YEAR]', 'first version [YEAR]', 'general availability [YEAR]', 'public launch [YEAR]', 'product launch'. FILTER OUT: dates before 2000 (likely unrelated), dates after current year (future dates - invalid), copyright years, blog post publication dates. DO NOT use recent launch dates for new features - use the original product launch. If you see 'launched 2021' and 'new features launched 2023', use 2021. If no valid project launch date found, use empty string.",
+    
+    "year_generic": "Extract as 4-digit year (YYYY format). Look for the earliest date mentioned in company history, founding dates, or first announcements. FILTER OUT dates before 2000 or after current year.",
+    
+    "year_empty": "CRITICAL: If year not found or only invalid dates found (before 2000, after current year), use empty string (\"\"). Do NOT use 'Failed to disclose'.",
+    
+    "text_empty": "CRITICAL: If information not found, use empty string (\"\"). Do NOT use 'Failed to disclose' - this field does not allow it per data definitions."
+  }
+}

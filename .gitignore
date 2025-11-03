@@ -5,6 +5,7 @@
 data/cache/
 data/output.xlsx
 data/archives.csv
+data/wot_data_definations (old).xlsx
 
 # Keep these data files (should be in GitHub):
 # - data/input.xlsx (template/example)
@@ -33,6 +34,7 @@ analyze_field_details.py
 
 # Internal documentation/notes
 IMPROVEMENTS_SUMMARY.md
+TEAM_CHANGELOG.md
 
 # IDE files
 .vscode/
@@ -47,4 +49,4 @@ Thumbs.db
 
 # Excel temp files
 ~$*.xlsx
-~$*.xls
+~$*.xlsTEAM_CHANGELOG.md

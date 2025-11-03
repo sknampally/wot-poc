@@ -103,66 +103,91 @@ def main():
     output_xlsx = DATA_DIR / "output.xlsx"  # Results with AI extraction and comparison
     print(f"input={input_xlsx} output={output_xlsx}")
 
-    # Load column headers from input.xlsx (these define what data to extract)
-    all_headers = load_headers(input_xlsx)
+    # Load codebook to get field definitions and determine what to extract
+    from app.config.codebook import load_codebook
+    codebook = load_codebook()
     
-    # Separate data columns from source columns and internal/excluded identifiers
-    # Data Definition columns: actual data fields we extract (e.g., "Mission Statement", "Status")
-    # Source columns: URLs where we found the data (e.g., "Live Source Mission Statement", "Archived Source Mission Statement")
-    # Internal/excluded columns: ID (unique identifier), Logo (URL to image - not text to extract)
-    # Note: Logo is typically a URL to an image file, not content that can be extracted from web pages
-    data_columns = [h for h in all_headers if "Live Source" not in h and "Archived Source" not in h 
-                    and h.strip() != "ID" and h.strip() != "Logo"]
-    source_columns = [h for h in all_headers if "Live Source" in h or "Archived Source" in h]
-    internal_columns = [h for h in all_headers if h.strip() in ["ID", "Logo"]]
+    # Build all headers list from codebook (data + source + archived columns in order)
+    # For POC, we include all columns from codebook regardless of source_needed/archive_needed
+    # This ensures output.xlsx matches the expected structure from definitions file
+    all_headers_list = []
+    for field in codebook.fields:
+        data_col = field.get("data_column", "")
+        source_col = field.get("source_column", "")
+        archived_col = field.get("archived_column", "")
+        
+        # Add data column
+        if data_col:
+            all_headers_list.append(data_col)
+        # Add source column if present
+        if source_col:
+            all_headers_list.append(source_col)
+        # Add archived column if present (even if not needed, to match structure)
+        if archived_col:
+            all_headers_list.append(archived_col)
     
-    # For extraction, we only use data columns (sources are populated from evidence URLs, ID and Logo are excluded)
-    headers = data_columns
+    # Get data columns that need extraction (extraction_needed == "Y")
+    # CRITICAL: Also include Product Name, ID, Logo for proper header mapping
+    # These are needed even if extraction_needed=N for data row structure
+    headers_for_extraction = codebook.get_data_columns_needed()
+    headers_for_comparison = headers_for_extraction + ["Product Name", "ID", "Logo"]
+    headers = headers_for_extraction  # Use only extraction_needed=Y for LLM
     
-    # Store all headers (including sources) for output Excel sheet structure
-    all_headers_list = all_headers
-    
-    print(f"Loaded {len(data_columns)} data columns, {len(source_columns)} source columns, and {len(internal_columns)} internal/excluded columns from input.xlsx")
-    print(f"Extracting data for {len(headers)} data definition columns only (ID and Logo excluded - internal/excluded fields).")
+    print(f"Loaded {len(codebook.fields)} fields from codebook")
+    print(f"Extracting data for {len(headers)} fields where extraction_needed=Y")
 
     # Parse project names from --targets argument
     targets = [t.strip() for t in args.targets.split(",") if t.strip()]
     if not targets:
         raise SystemExit("No targets parsed from --targets")
 
-    # Load input data to get known websites for better search targeting
-    # Known websites help the system prioritize official sources
+    # Load input data to get known websites and GitHub repos for better search targeting
+    # Known websites and GitHub repos help the system prioritize official sources
     import pandas as pd
     df_input = pd.read_excel(input_xlsx, sheet_name=0, dtype=str).fillna("")
     
-    # Find the column names for project name and website
+    # Find the column names for project name, website, and GitHub repo
     name_col = None
     website_col = None
+    github_col = None
     for col in df_input.columns:
         if col.lower() in ["product name", "project name", "name"]:
             name_col = col
         if col.lower() == "website":
             website_col = col
-            break
+        if "code repository" in col.lower() and "public" in col.lower():
+            github_col = col
     
     # Build mapping: project_name -> website URL
     # This helps the search phase target the correct entity
     project_websites = {}
-    if name_col and website_col:
+    project_github = {}
+    if name_col:
         for _, row in df_input.iterrows():
             proj_name = str(row.get(name_col, "")).strip()
-            website = str(row.get(website_col, "")).strip()
-            # Only include valid website entries (not empty/None/Nan)
-            if proj_name and website and website.lower() not in ("nan", "none", ""):
-                project_websites[proj_name] = website
+            if not proj_name:
+                continue
+                
+            # Extract website if available
+            if website_col:
+                website = str(row.get(website_col, "")).strip()
+                if website and website.lower() not in ("nan", "none", ""):
+                    project_websites[proj_name] = website
+            
+            # Extract GitHub repository if available
+            if github_col:
+                github = str(row.get(github_col, "")).strip()
+                if github and github.lower() not in ("nan", "none", "") and "github.com" in github.lower():
+                    project_github[proj_name] = github
     
     # Process each project through the pipeline
     all_rows = []
     for project in targets:
         print(f"Processing {project}")
         
-        # Get known website if available (helps improve search accuracy)
+        # Get known website and GitHub repo if available (helps improve search accuracy)
         known_website = project_websites.get(project, "")
+        known_github = project_github.get(project, "")
         
         # Step 1: Search for relevant URLs using SerpAPI
         # This finds official websites, documentation, blog posts, etc.
@@ -182,22 +207,31 @@ def main():
         
         # Step 3: Extract structured data using LLM
         # Uses codebook definitions to guide extraction
+        # Pass headers_for_comparison (includes Product Name) to ensure proper header mapping
         rec = extract_record(
             project=project,
-            headers=headers,
+            headers=headers_for_comparison,
             pages=pages,
             provider=args.provider,
             model=args.model,
             max_output_tokens=args.max_output_tokens,
             known_website=known_website,  # Helps identify official website
         )
+        
+        # SKIPPED: Second-pass targeted SerpAPI search to reduce costs
+        # We rely on the initial comprehensive search and LLM's ability to extract from available context
+        # If technical fields are missing, it's likely they're not publicly available
+        
+        # Add Product Name to the record (since extraction_needed=N in codebook)
+        rec["Product Name"] = project
+        
         all_rows.append(rec)
 
     # Step 4: Export all results to Excel
     # Creates Input, AI, and Comparison sheets
     export_to_excel(
         input_xlsx=input_xlsx,
-        headers=headers,  # Data columns for extraction and comparison
+        headers=headers_for_comparison,  # Data columns for comparison (includes Product Name, ID, Logo)
         recs=all_rows,
         output_xlsx=output_xlsx,
         all_headers=all_headers_list,  # Include source columns in AI sheet for review
