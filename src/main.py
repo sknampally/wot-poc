@@ -233,6 +233,12 @@ def main():
             missing_key_fields.append("Mission Statement")
         if rec.get("Logo", "").strip() == "":
             missing_key_fields.append("Logo")
+        if rec.get("Public Code Repository", "").strip() == "":
+            missing_key_fields.append("Public Code Repository")
+        if rec.get("Project Launch Date", "").strip() == "":
+            missing_key_fields.append("Project Launch Date")
+        if rec.get("Tech Stack Descriptions", "").strip() == "":
+            missing_key_fields.append("Tech Stack Descriptions")
         
         if missing_key_fields and os.getenv("PERPLEXITY_API_KEY"):
             log.info("[perplexity] Fallback for %s: %d missing fields", project, len(missing_key_fields))
@@ -242,23 +248,41 @@ def main():
                 for field in missing_key_fields:
                     # Query Perplexity to search the web for this specific field
                     if field == "Mission Statement":
-                        query = f"What is the mission statement of {project}?"
+                        query = f"mission statement of {project}"
                         if known_website:
                             query += f" from {known_website}"
-                        max_tokens = 1000  # More tokens for mission statements
+                        max_tokens = 300  # Mission statements
                     elif field == "Logo":
-                        query = f"What is the exact URL of the official logo image for {project}?"
+                        query = f"logo image URL for {project}"
                         if known_website:
                             query += f" from {known_website}"
                         max_tokens = 100  # Logo URLs are short
+                    elif field == "Public Code Repository":
+                        query = f"GitHub repository URL for {project}"
+                        if known_website:
+                            query += f" at {known_website}"
+                        max_tokens = 100  # Repository URLs
+                    elif field == "Project Launch Date":
+                        query = f"launch year for {project}"
+                        if known_website:
+                            query += f" at {known_website}"
+                        max_tokens = 50  # Just need a year
+                    elif field == "Tech Stack Descriptions":
+                        query = f"technology stack for {project}"
+                        if known_website:
+                            query += f" at {known_website}"
+                        max_tokens = 200  # Tech stack description
                     else:
-                        query = f"Extract the {field.lower()} for {project}"
+                        query = f"{field.lower()} for {project}"
                         if known_website:
                             query += f" from {known_website}"
-                        max_tokens = 500
+                        max_tokens = 200
+                    
+                    # Use stricter prompt for concise responses
+                    strict_prompt = "Extract and return ONLY the exact value requested. No explanations, no formatting, no additional text. Just the value itself."
                     
                     perplexity_response = chat_json(
-                        system="You are a precise data extraction assistant. Provide only the exact information requested, without elaboration or explanation.",
+                        system=strict_prompt,
                         user=query,
                         provider="perplexity",
                         model="sonar",
@@ -266,7 +290,65 @@ def main():
                     )
                     
                     if perplexity_response.strip():
-                        rec[field] = perplexity_response.strip()
+                        # Post-process Perplexity response to extract clean value
+                        cleaned = perplexity_response.strip()
+                        
+                        # For Logo, extract first image URL
+                        if field == "Logo":
+                            import re
+                            # Look for image URLs (png, svg, jpg, webp, etc.)
+                            img_urls = re.findall(r'https?://[^\s\[\]]+\.(?:png|svg|jpg|jpeg|webp|gif|ico)', cleaned, re.IGNORECASE)
+                            if img_urls:
+                                cleaned = img_urls[0]
+                            # Remove markdown formatting
+                            cleaned = cleaned.replace('**', '').replace('*', '')
+                        
+                        # For Public Code Repository, extract first GitHub/GitLab URL
+                        elif field == "Public Code Repository":
+                            import re
+                            urls = re.findall(r'https?://(?:github|gitlab)\.com/[^\s\[\]]+', cleaned, re.IGNORECASE)
+                            if urls:
+                                # Prefer organization repos over specific repos if both exist
+                                org_url = [u for u in urls if re.match(r'https://github\.com/[^/]+/?$', u)]
+                                if org_url:
+                                    cleaned = org_url[0].rstrip('/')
+                                else:
+                                    cleaned = urls[0]
+                            # Remove markdown formatting
+                            cleaned = cleaned.replace('**', '').replace('*', '')
+                        
+                        # For Project Launch Date, extract first 4-digit year
+                        elif field == "Project Launch Date":
+                            import re
+                            years = re.findall(r'\b(19|20\d{2})\b', cleaned)
+                            if years:
+                                cleaned = years[0]
+                        
+                        # For long responses (Mission, Tech Stack), summarize using OpenAI if verbose
+                        elif len(cleaned) > 200 and field in ["Mission Statement", "Tech Stack Descriptions"]:
+                            try:
+                                log.info("[perplexity] %s: Summarizing verbose %s response", project, field)
+                                summary = chat_json(
+                                    system="You are a precise summarizer. Extract ONLY the core information. No explanations, no formatting.",
+                                    user=f"Summarize this into a concise {field.lower()}: {cleaned[:500]}",
+                                    provider="openai",
+                                    model=args.model,
+                                    max_tokens=200,
+                                )
+                                if summary.strip():
+                                    cleaned = summary.strip()
+                                    log.info("[perplexity] %s: Summarized %s", project, field)
+                            except Exception as e:
+                                log.warning("[perplexity] %s: Summary failed for %s: %s", project, field, e)
+                        
+                        # For other fields, take first line if response is long and remove markdown
+                        else:
+                            if len(cleaned) > 200:
+                                cleaned = cleaned.split('\n')[0].strip()
+                            # Remove markdown formatting
+                            cleaned = cleaned.replace('**', '').replace('*', '').replace('_', '').strip()
+                        
+                        rec[field] = cleaned
                         log.info("[perplexity] %s: Extracted %s", project, field)
                         print(f"    ✓ Found {field}")
                     else:

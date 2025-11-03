@@ -225,7 +225,8 @@ def _is_text_match(client_val: str, ai_val: str, field_name: str, threshold: flo
             significant_overlap = word_overlap * 1.3  # Boost significant word overlap
             final_score = max(similarity, significant_overlap)
             # Lower threshold for mission statements to account for paraphrasing
-            effective_threshold = 0.3 if "mission" in field_name.lower() else threshold
+            # Mission statements often have same meaning but different wording
+            effective_threshold = 0.10 if "mission" in field_name.lower() else threshold
             return final_score >= effective_threshold
     
     return False
