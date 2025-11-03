@@ -280,6 +280,12 @@ def main():
             missing_key_fields.append("Tech Stack Descriptions")
         if rec.get("Project Announcement Date", "").strip() == "":
             missing_key_fields.append("Project Announcement Date")
+        if rec.get("Uses/endorses ZKP", "").strip() == "":
+            missing_key_fields.append("Uses/endorses ZKP")
+        if rec.get("Person of Interest", "").strip() == "":
+            missing_key_fields.append("Person of Interest")
+        if rec.get("Person of Interest Work Title", "").strip() == "":
+            missing_key_fields.append("Person of Interest Work Title")
         
         if missing_key_fields and os.getenv("PERPLEXITY_API_KEY"):
             log.info("[perplexity] Fallback for %s: %d missing fields", project, len(missing_key_fields))
@@ -294,11 +300,11 @@ def main():
                         max_tokens = 100
                         strict_prompt = "Extract and return ONLY the status name (Announced, Pilot, Launched, or Discontinued). No explanations."
                     elif field == "Mission Statement":
-                        query = f"what is the mission statement of {project}"
+                        query = f"summarize the mission statement of {project}"
                         if known_website:
                             query += f" from {known_website}"
                         max_tokens = 300  # Mission statements
-                        strict_prompt = "Extract and return ONLY the exact value requested. No explanations, no formatting, no additional text. Just the value itself."
+                        strict_prompt = "Extract and return ONLY the mission statement. No explanations, no formatting."
                     elif field == "Logo":
                         query = f"give me the link to the logo of {project}"
                         if known_website:
@@ -329,6 +335,24 @@ def main():
                             query += f" at {known_website}"
                         max_tokens = 200  # Tech stack description
                         strict_prompt = "Extract and return ONLY the exact value requested. No explanations, no formatting, no additional text. Just the value itself."
+                    elif field == "Uses/endorses ZKP":
+                        query = f"Defines {project} uses ZKP or if it endorses it. In case there is no explicit information about the project actively using ZKP or having an opinion about it \"Failed to disclose\" will be the response., for this I am looking for Yes / No or Failed to disclose"
+                        if known_website:
+                            query += f" at {known_website}"
+                        max_tokens = 100  # Short yes/no answer
+                        strict_prompt = "Extract and return ONLY the answer: Yes, No, or Failed to disclose. No explanations."
+                    elif field == "Person of Interest":
+                        query = f"who are the founders or key leaders of {project}? list their names"
+                        if known_website:
+                            query += f" at {known_website}"
+                        max_tokens = 150  # Names
+                        strict_prompt = "Extract and return ONLY the names of founders/key leaders. List names separated by commas."
+                    elif field == "Person of Interest Work Title":
+                        query = f"what are the job titles or roles of the founders or key leaders of {project}?"
+                        if known_website:
+                            query += f" at {known_website}"
+                        max_tokens = 150  # Titles
+                        strict_prompt = "Extract and return ONLY the job titles. List titles separated by commas."
                     else:
                         query = f"{field.lower()} for {project}"
                         if known_website:
@@ -403,6 +427,20 @@ def main():
                             if found_status:
                                 cleaned = found_status
                         
+                        # For ZKP field, normalize to True/False/Failed to disclose
+                        elif field == "Uses/endorses ZKP":
+                            # Map Perplexity response to our format
+                            cleaned_lower = cleaned.lower()
+                            if "yes" in cleaned_lower or "true" in cleaned_lower:
+                                cleaned = "True"
+                            elif "no" in cleaned_lower or "false" in cleaned_lower:
+                                cleaned = "False"
+                            elif "failed to disclose" in cleaned_lower:
+                                cleaned = "Failed to disclose"
+                            else:
+                                # Default if unclear
+                                cleaned = "Failed to disclose"
+                        
                         # For long responses (Mission, Tech Stack), summarize using OpenAI if verbose
                         elif len(cleaned) > 200 and field in ["Mission Statement", "Tech Stack Descriptions"]:
                             try:
@@ -430,6 +468,32 @@ def main():
                         rec[field] = cleaned
                         log.info("[perplexity] %s: Extracted %s", project, field)
                         print(f"    ✓ Found {field}")
+                        
+                        # Bonus: If response contains Person of Interest details, extract them
+                        # This helps capture founder/leader info from any response
+                        if field in ["Status", "Project Announcement Date", "Mission Statement", "Tech Stack Descriptions"]:
+                            try:
+                                import re
+                                # Look for common founder/leader patterns in the response
+                                founder_patterns = [
+                                    r'founded by ([A-Z][a-z]+ [A-Z][a-z]+)',
+                                    r'founders?: ([A-Z][a-z]+ [A-Z][a-z]+(?: and [A-Z][a-z]+ [A-Z][a-z]+)?)',
+                                    r'co-founded by ([A-Z][a-z]+ [A-Z][a-z]+)',
+                                    r'CEO ([A-Z][a-z]+ [A-Z][a-z]+)',
+                                    r'led by ([A-Z][a-z]+ [A-Z][a-z]+)',
+                                ]
+                                names_found = []
+                                for pattern in founder_patterns:
+                                    matches = re.findall(pattern, cleaned)
+                                    names_found.extend(matches)
+                                
+                                if names_found and not rec.get("Person of Interest", "").strip():
+                                    # Store first few names found
+                                    unique_names = list(dict.fromkeys(names_found))  # Remove duplicates while preserving order
+                                    rec["Person of Interest"] = ", ".join(unique_names[:3])  # Max 3 names
+                                    log.info("[perplexity] %s: Bonus - extracted Person of Interest from %s response", project, field)
+                            except Exception as e:
+                                log.debug("[perplexity] %s: Error extracting Person of Interest from %s: %s", project, field, e)
                     else:
                         log.warning("[perplexity] %s: No response for %s", project, field)
             except Exception as e:
