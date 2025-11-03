@@ -160,8 +160,9 @@ Open `data/output.xlsx` to see:
 ## 🎯  8  Accuracy Metrics
 
 The system calculates accuracy **only for Data Columns**:
-- ✅ **Included**: All data fields from `wot_data_definations.xlsx`
-- ❌ **Excluded**: Product Name, ID, Live Source, Archived Source fields
+- ✅ **Included**: All data fields from `wot_data_definations.xlsx` where `extraction_needed=Y`
+- ❌ **Excluded from comparison**: Product Name, ID, Logo, Live Source fields, Archived Source fields
+- ℹ️ **Note**: Live Source fields ARE captured and exported - they're just not used in accuracy comparison
 
 Text fields use semantic similarity matching (60% threshold) - meaning if two texts convey the same meaning, they're considered a match.
 
