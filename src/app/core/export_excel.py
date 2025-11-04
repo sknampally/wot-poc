@@ -1,17 +1,7 @@
 """
-Excel export module with comparison and matching logic.
+Excel export with comparison and matching logic.
 
-This module handles:
-1. Loading input data from input.xlsx
-2. Building AI-extracted data DataFrame
-3. Creating comparison sheet (side-by-side AI vs manual data)
-4. Semantic similarity matching for long text fields
-5. Normalization of values for accurate comparison
-6. Excluding source fields from matching (only Data Columns are compared)
-
-The comparison uses fuzzy matching (60% similarity threshold) for long text
-fields to account for variations in phrasing while requiring exact matches
-for short fields (URLs, dates, IDs).
+Handles input loading, AI data building, comparison sheet creation, and semantic matching.
 """
 # src/app/core/export_excel.py
 from __future__ import annotations
@@ -40,16 +30,7 @@ def _load_input_df(input_xlsx: Path) -> pd.DataFrame:
     return pd.read_excel(input_xlsx, sheet_name=0, dtype=str).fillna("")
 
 def _build_ai_df(headers: List[str], recs: List[Dict[str, Any]], all_headers: List[str] = None) -> pd.DataFrame:
-    """
-    Builds a DataFrame from the AI-extracted records.
-    Performs final cleanup of "Failed to disclose" from fields that don't allow it.
-    Also populates source columns from evidence URLs.
-    
-    Args:
-        headers: List of data definition columns (extracted data)
-        recs: List of extracted records (dictionaries)
-        all_headers: Optional full list of headers including source columns
-    """
+    """Build DataFrame from AI-extracted records and populate source columns."""
     # Load allowed fields from prompts.json config
     from app.config.codebook import load_prompts
     prompts_config = load_prompts()
@@ -120,15 +101,7 @@ def _build_ai_df(headers: List[str], recs: List[Dict[str, Any]], all_headers: Li
     return df
 
 def _append_or_update_ai_sheet(output_xlsx: Path, headers: List[str], df_new: pd.DataFrame, input_xlsx: Path = None) -> pd.DataFrame:
-    """
-    Append or update AI sheet, preserving ID from input if present.
-    
-    Args:
-        output_xlsx: Path to output Excel file
-        headers: List of headers (may include ID, but ID won't be in df_new if excluded from extraction)
-        df_new: New DataFrame with AI-extracted data
-        input_xlsx: Optional input Excel path to copy ID values from
-    """
+    """Append or update AI sheet, preserving ID from input if present."""
     nm_col = name_header(headers)
     
     # If ID is in headers but not in df_new (because we excluded it from extraction),
@@ -289,30 +262,7 @@ def _is_text_match(client_val: str, ai_val: str, field_name: str, threshold: flo
     return False
 
 def _build_comparison(df_input: pd.DataFrame, df_ai: pd.DataFrame, headers: List[str]) -> pd.DataFrame:
-    """
-    Build comparison sheet showing AI vs manual data side-by-side.
-    
-    Process:
-    1. Merge input and AI data on project name
-    2. For each field:
-       - Normalize values based on field type (status, year, ternary)
-       - Use semantic similarity matching for text fields
-       - Skip source fields (Live Source, Archived Source)
-    3. Mark matches with ✓ symbol
-    
-    Args:
-        df_input: DataFrame with manual/client data
-        df_ai: DataFrame with AI-extracted data
-        headers: List of field names to compare
-    
-    Returns:
-        pd.DataFrame: Comparison sheet with columns:
-            - Project: Project name
-            - Field: Field name
-            - Client Value: Manual value
-            - AI Value: AI-extracted value
-            - Match?: ✓ if match, empty if not
-    """
+    """Build comparison sheet showing AI vs manual data side-by-side."""
     # Use Product Name from input columns (not from headers which might not include it)
     nm_col = name_header(df_input.columns.tolist())
 
@@ -322,29 +272,25 @@ def _build_comparison(df_input: pd.DataFrame, df_ai: pd.DataFrame, headers: List
     right = df_ai.copy()
     right[nm_col] = right[nm_col].apply(_norm)
 
-    # Filter input to only include projects with actual manual data (at least one non-empty field beyond Product Name)
-    # This ensures we only compare projects that have manual/client data, not projects with empty input rows
+    # Only include projects with actual manual data
     projects_with_manual_data = []
     for _, row in left.iterrows():
         project_name = _norm(row.get(nm_col, ""))
         if not project_name:
             continue
-        # Count non-empty fields (excluding Product Name and ID/Logo which are reference fields)
+        # Check for non-empty fields (excluding Product Name, ID, Logo)
         non_empty_count = 0
         for col in left.columns:
             if col == nm_col or col in ["ID", "Logo"]:
                 continue
             val = _norm(row.get(col, ""))
-            if val:  # Non-empty value found
+            if val:
                 non_empty_count += 1
-                break  # Found at least one, no need to check more
+                break
         if non_empty_count > 0:
             projects_with_manual_data.append(project_name)
     
-    # Filter left (input) to only projects with manual data
     left_filtered = left[left[nm_col].isin(projects_with_manual_data)].copy()
-    
-    # strict inner merge on project name to compare like-for-like (only projects with manual data)
     merged = left_filtered.merge(right, on=nm_col, how="inner", suffixes=("_client", "_ai"))
 
     rows: List[Dict[str, Any]] = []
@@ -419,21 +365,7 @@ def _build_comparison(df_input: pd.DataFrame, df_ai: pd.DataFrame, headers: List
     return pd.DataFrame(rows, columns=["Project", "Field", "Client Value", "AI Value", "Match?"])
 
 def export_to_excel(input_xlsx: Path, headers: List[str], recs: List[Dict[str, Any]], output_xlsx: Path, all_headers: List[str] = None) -> None:
-    """
-    Export extraction results to Excel with Input, AI, and Comparison sheets.
-    
-    Creates/updates output.xlsx with:
-    - Input sheet: Original data from input.xlsx
-    - AI sheet: AI-extracted data with source URLs (updates existing if file exists)
-    - Comparison sheet: Side-by-side comparison of AI vs manual data (data columns only)
-    
-    Args:
-        input_xlsx: Path to input Excel file
-        headers: List of data definition column headers (for extraction and comparison)
-        recs: List of extracted records (one per project)
-        output_xlsx: Path to output Excel file
-        all_headers: Optional full list of headers including source columns (for complete output structure)
-    """
+    """Export extraction results to Excel with Input, AI, and Comparison sheets."""
     df_input = _load_input_df(input_xlsx)
     # Build AI DataFrame with data columns and source columns populated from evidence
     df_new_ai = _build_ai_df(headers, recs, all_headers=all_headers if all_headers else headers)

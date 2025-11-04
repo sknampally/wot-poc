@@ -1,22 +1,7 @@
 """
-URL searcher using SerpAPI (Google search API) with fallback seed URLs.
+URL searcher using SerpAPI with fallback seed URLs.
 
-This module finds relevant URLs for a project by:
-1. Using SerpAPI to perform Google searches with human-like queries
-2. Extracting URLs from multiple Google result types:
-   - Organic results (main search results)
-   - Sitelinks (expanded navigation)
-   - Answer boxes (featured snippets)
-   - Knowledge graph (Google info panel)
-   - People also ask (PAA)
-   - Related questions
-   - Top stories/news
-3. Filtering out irrelevant sources (YouTube, social media, etc.)
-4. Prioritizing official sources (homepage, about pages, docs)
-5. Using fallback seed URLs if SerpAPI unavailable
-
-The known_website parameter helps target the correct entity when multiple
-projects share similar names.
+Finds relevant URLs via Google search and prioritizes official sources.
 """
 from __future__ import annotations
 import json

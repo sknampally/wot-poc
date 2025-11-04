@@ -1,22 +1,12 @@
 """
-Main entry point for the Web of Trust POC (Proof of Concept).
+Main entry point for the Web of Trust POC.
 
-This script orchestrates the complete data extraction pipeline:
-1. Search: Uses SerpAPI to find relevant URLs for each project
-2. Scrape: Fetches and extracts text content from those URLs
-3. Extract: Uses LLM (OpenAI, Ollama, or Perplexity) to extract structured data
-4. Export: Writes results to Excel with comparison against manual data
+Runs the data extraction pipeline: search → scrape → extract → export.
 
 Usage:
     python src/main.py --targets "project1,project2" --provider openai --model gpt-4o-mini
 
-Environment variables (via .env file):
-    - SERPAPI_API_KEY: Required for web search
-    - OPENAI_API_KEY: Required for LLM extraction (if using OpenAI)
-    - PERPLEXITY_API_KEY: Required for Perplexity fallback
-    - LLM_PROVIDER: 'openai' or 'ollama' (default: 'openai')
-    - LLM_MODEL: Model name (default: 'gpt-4o-mini')
-    - LLM_MAX_TOKENS: Maximum output tokens (default: 4000)
+Required env vars: SERPAPI_API_KEY, OPENAI_API_KEY, PERPLEXITY_API_KEY: Required for Perplexity fallback
 """
 import argparse
 import json
@@ -167,14 +157,11 @@ def main():
     output_xlsx = DATA_DIR / "output.xlsx"  # Results with AI extraction and comparison
     print(f"input={input_xlsx} output={output_xlsx}")
 
-    # Load codebook to get field definitions and determine what to extract
     from app.config.codebook import load_codebook, load_prompts
     codebook = load_codebook()
-    prompts_config = load_prompts()  # Load all prompts from prompts.json
+    prompts_config = load_prompts()
     
-    # Build all headers list from codebook (data + source + archived columns in order)
-    # For POC, we include all columns from codebook regardless of source_needed/archive_needed
-    # This ensures output.xlsx matches the expected structure from definitions file
+    # Build all headers list (data + source + archived columns)
     all_headers_list = []
     for field in codebook.fields:
         data_col = field.get("data_column", "")
@@ -191,12 +178,9 @@ def main():
         if archived_col:
             all_headers_list.append(archived_col)
     
-    # Get data columns that need extraction (extraction_needed == "Y")
-    # CRITICAL: Also include Product Name, ID, Logo for proper header mapping
-    # These are needed even if extraction_needed=N for data row structure
     headers_for_extraction = codebook.get_data_columns_needed()
     headers_for_comparison = headers_for_extraction + ["Product Name", "ID", "Logo"]
-    headers = headers_for_extraction  # Use only extraction_needed=Y for LLM
+    headers = headers_for_extraction
     
     print(f"Loaded {len(codebook.fields)} fields from codebook")
     print(f"Extracting data for {len(headers)} fields where extraction_needed=Y")
@@ -206,12 +190,8 @@ def main():
     if not targets:
         raise SystemExit("No targets parsed from --targets")
 
-    # Load input data to get known websites and GitHub repos for better search targeting
-    # Known websites and GitHub repos help the system prioritize official sources
     import pandas as pd
     df_input = pd.read_excel(input_xlsx, sheet_name=0, dtype=str).fillna("")
-    
-    # Find the column names for project name, website, and GitHub repo
     name_col = None
     website_col = None
     github_col = None
@@ -223,8 +203,6 @@ def main():
         if "code repository" in col.lower() and "public" in col.lower():
             github_col = col
     
-    # Build mapping: project_name -> website URL
-    # This helps the search phase target the correct entity
     project_websites = {}
     project_github = {}
     if name_col:
@@ -250,29 +228,21 @@ def main():
     for project in targets:
         print(f"Processing {project}")
         
-        # Get known website and GitHub repo if available (helps improve search accuracy)
         known_website = project_websites.get(project, "")
         known_github = project_github.get(project, "")
         
-        # Step 1: Search for relevant URLs using SerpAPI
-        # This finds official websites, documentation, blog posts, etc.
         url_items = search_urls(
             project, 
             cache_dir=CACHE_DIR / project, 
             known_website=known_website
         )
         
-        # Step 2: Scrape content from the collected URLs
-        # Extracts clean text from HTML pages
         pages = scrape_urls(
             project, 
             url_items=url_items, 
             cache_dir=CACHE_DIR / project
         )
-        
-        # Step 3: Extract structured data using LLM
-        # Uses codebook definitions to guide extraction
-        # Pass headers_for_comparison (includes Product Name) to ensure proper header mapping
+
         rec = extract_record(
             project=project,
             headers=headers_for_comparison,

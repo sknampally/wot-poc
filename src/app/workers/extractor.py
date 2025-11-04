@@ -1,15 +1,7 @@
 """
 LLM-based data extraction from scraped web pages.
 
-This module orchestrates the extraction of structured data using LLMs:
-1. Context Packing: Prioritizes pages by relevance (homepage > about > docs > blog)
-2. Prompt Engineering: Builds detailed prompts using codebook field definitions
-3. LLM Extraction: Calls OpenAI/Ollama to extract structured data
-4. Result Parsing: Handles JSON extraction with robust fallbacks
-5. Evidence Tracking: Tracks source URLs for each extracted value
-
-The extraction uses field definitions from the codebook to provide
-specific guidance to the LLM on how to extract each field.
+Extracts structured data using codebook field definitions to guide the LLM.
 """
 from __future__ import annotations
 import json
@@ -91,21 +83,7 @@ def _parse_llm_json(raw: str) -> Tuple[Dict[str, Any] | None, str]:
 
 
 def _make_prompt_payload(project: str, headers: List[str], context: str, codebook: Codebook) -> str:
-    """
-    Build comprehensive LLM prompt with field-specific extraction guidance.
-    
-    Uses codebook field definitions and JSON prompts to generate detailed instructions.
-    This helps the LLM understand exactly what to extract and where to find it.
-    
-    Args:
-        project: Project name to extract data for
-        headers: List of field names to extract
-        context: Packed text content from scraped pages
-        codebook: Codebook with field definitions and extraction guidance
-    
-    Returns:
-        str: Complete prompt string for LLM
-    """
+    """Build LLM prompt with field-specific extraction guidance."""
     # Load prompts from JSON file for easy tweaking by prompt engineers
     prompts = load_prompts()
     fields_config = prompts.get("fields", {})
@@ -344,37 +322,12 @@ def extract_record(
     """
     Extract structured data from scraped pages using LLM.
     
-    Process:
-    1. Filter and prioritize pages (homepage > about > docs > blog)
-    2. Pack context from top 20 pages (up to 10K chars each)
-    3. Build detailed prompt with field-specific guidance
-    4. Call LLM to extract structured JSON
-    5. Parse and validate LLM response
-    6. Coerce to match exact Excel headers
-    7. Add seed data (website URL from known_website or first page)
-    
-    Args:
-        project: Project name
-        headers: List of Excel column headers to extract
-        pages: List of scraped page dicts (url, text, status, mime)
-        provider: LLM provider ('openai' or 'ollama')
-        model: Model name (e.g., 'gpt-4o-mini', 'llama3.1')
-        max_output_tokens: Maximum tokens for LLM response
-        codebook: Optional codebook (loads default if None)
-        known_website: Optional known website URL (helps identify official site)
-    
-    Returns:
-        Dict[str, Any]: Extracted data dict keyed by headers, with _evidence list
-    
-    Note:
-        Automatically retries up to 3 times on LLM failures.
+    Retries up to 3 times on failures.
     """
     codebook = codebook or load_codebook()
     log.info("[extract] %s: pages received=%d", project, len(pages))
 
-    # ---- context packing: filter and prioritize high-quality content
-    # Strategy: prioritize pages by information density and relevance
-    # CRITICAL: Filter out low-quality pages (job postings, careers, downloads, etc.)
+    # Filter and prioritize pages (homepage > about > docs > blog)
     page_candidates: List[Tuple[float, str, str]] = []  # (priority, url, text)
     
     # Load exclude keywords from prompts.json config

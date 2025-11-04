@@ -180,45 +180,34 @@ def _perplexity_chat(messages: List[Dict[str, str]], model: str, max_tokens: int
     txt = (resp.choices[0].message.content or "").strip()
     
     # Extract citations from Perplexity response
-    # Perplexity typically includes citations in the text as:
-    # - [1] https://example.com
-    # - Or at the end: Sources: [1] https://example.com [2] https://other.com
-    # - Or inline: ...according to [1](https://example.com)...
     citations: List[str] = []
-    
-    # Try to get citations from response object (if available)
     if hasattr(resp, 'citations') and resp.citations:
         citations = list(resp.citations) if isinstance(resp.citations, (list, tuple)) else [str(resp.citations)]
     else:
         # Extract citations from response text
         import re
-        # Pattern 1: [1] https://example.com or [1](https://example.com)
         citation_pattern = r'\[\d+\]\(?(https?://[^\s\)\]\n]+)\)?'
         found_urls = re.findall(citation_pattern, txt)
         if found_urls:
             citations.extend(found_urls)
         
-        # Pattern 2: Look for URLs after "Sources:" or "References:" markers
         sources_section = re.search(r'(?:Sources?|References?):\s*(.*)', txt, re.IGNORECASE | re.DOTALL)
         if sources_section:
             sources_text = sources_section.group(1)
             urls_in_section = re.findall(r'https?://[^\s\]\n]+', sources_text)
             citations.extend(urls_in_section)
         
-        # Pattern 3: Extract all URLs from the response (fallback)
-        # This is less precise but catches any URLs mentioned
+        # Fallback: extract all URLs
         if not citations:
             all_urls = re.findall(r'https?://[^\s\)\]\n,;]+', txt)
-            # Deduplicate and filter out common false positives
             seen = set()
             for url in all_urls:
                 url_clean = url.rstrip('.,;!?)')
-                # Filter out image URLs, data URIs, and other non-document URLs
                 if url_clean not in seen and not any(skip in url_clean.lower() for skip in ['.png', '.jpg', '.jpeg', '.svg', '.gif', 'data:']):
                     citations.append(url_clean)
                     seen.add(url_clean)
     
-    # Remove duplicates while preserving order
+    # Remove duplicates
     citations = list(dict.fromkeys(citations))
     
     return txt, citations
