@@ -322,8 +322,30 @@ def _build_comparison(df_input: pd.DataFrame, df_ai: pd.DataFrame, headers: List
     right = df_ai.copy()
     right[nm_col] = right[nm_col].apply(_norm)
 
-    # strict inner merge on project name to compare like-for-like
-    merged = left.merge(right, on=nm_col, how="inner", suffixes=("_client", "_ai"))
+    # Filter input to only include projects with actual manual data (at least one non-empty field beyond Product Name)
+    # This ensures we only compare projects that have manual/client data, not projects with empty input rows
+    projects_with_manual_data = []
+    for _, row in left.iterrows():
+        project_name = _norm(row.get(nm_col, ""))
+        if not project_name:
+            continue
+        # Count non-empty fields (excluding Product Name and ID/Logo which are reference fields)
+        non_empty_count = 0
+        for col in left.columns:
+            if col == nm_col or col in ["ID", "Logo"]:
+                continue
+            val = _norm(row.get(col, ""))
+            if val:  # Non-empty value found
+                non_empty_count += 1
+                break  # Found at least one, no need to check more
+        if non_empty_count > 0:
+            projects_with_manual_data.append(project_name)
+    
+    # Filter left (input) to only projects with manual data
+    left_filtered = left[left[nm_col].isin(projects_with_manual_data)].copy()
+    
+    # strict inner merge on project name to compare like-for-like (only projects with manual data)
+    merged = left_filtered.merge(right, on=nm_col, how="inner", suffixes=("_client", "_ai"))
 
     rows: List[Dict[str, Any]] = []
     for _, rec in merged.iterrows():
