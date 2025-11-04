@@ -399,19 +399,35 @@ def main():
                             # Remove markdown formatting
                             cleaned = cleaned.replace('**', '').replace('*', '')
                         
-                        # For Project Launch Date, extract first 4-digit year
+                        # For Project Launch Date, extract first 4-digit year and validate
                         elif field == "Project Launch Date":
-                            import re
-                            years = re.findall(r'\b(19|20\d{2})\b', cleaned)
-                            if years:
-                                cleaned = years[0]
+                            from app.core.schema import normalize_year
+                            # Use normalize_year to extract and validate year (filters out years before 2000 and after current year)
+                            normalized = normalize_year(cleaned, min_year=2000)
+                            if normalized:
+                                cleaned = normalized
+                            else:
+                                # If normalize_year filtered it out, try to extract any 4-digit year for logging
+                                import re
+                                years = re.findall(r'\b((?:19|20)\d{2})\b', cleaned)
+                                if years:
+                                    log.warning("[perplexity] %s: Project Launch Date year %s filtered out by normalize_year", project, years[0])
+                                    cleaned = ""  # Use empty string if filtered out
                         
-                        # For Project Announcement Date, extract first 4-digit year
+                        # For Project Announcement Date, extract first 4-digit year and validate
                         elif field == "Project Announcement Date":
-                            import re
-                            years = re.findall(r'\b(19|20\d{2})\b', cleaned)
-                            if years:
-                                cleaned = years[0]
+                            from app.core.schema import normalize_year
+                            # Use normalize_year to extract and validate year (filters out years before 2000 and after current year)
+                            normalized = normalize_year(cleaned, min_year=2000)
+                            if normalized:
+                                cleaned = normalized
+                            else:
+                                # If normalize_year filtered it out, try to extract any 4-digit year for logging
+                                import re
+                                years = re.findall(r'\b((?:19|20)\d{2})\b', cleaned)
+                                if years:
+                                    log.warning("[perplexity] %s: Project Announcement Date year %s filtered out by normalize_year", project, years[0])
+                                    cleaned = ""  # Use empty string if filtered out
                         
                         # For Status field, extract status name from response
                         elif field == "Status":
@@ -537,93 +553,68 @@ def main():
                                 log.warning("[perplexity] %s: Could not parse %s response, defaulting to Failed to disclose. Response: %s", project, field, cleaned[:100])
                                 cleaned = "Failed to disclose"
                         
-                        # For Person of Interest, extract just the person name(s)
+                        # For Person of Interest, extract names and titles from format "Name (Title), Name (Title)"
                         elif field == "Person of Interest":
                             import re
-                            # Remove common prefixes like "The founders and key leaders of", "founders are", etc.
-                            cleaned_lower = cleaned.lower()
-                            prefixes_to_remove = [
-                                r'the founders? (and key leaders? )?of (the )?[^,]+( are| include)?:?\s*',
-                                r'founders? (and|&) (key )?leaders? (of|include|are):?\s*',
-                                r'key leaders? (and|&) founders? (of|include|are):?\s*',
-                                r'founders? (of|include|are):?\s*',
-                                r'key leaders? (of|include|are):?\s*',
-                                r'leaders? (of|include|are):?\s*',
-                                r'person (of interest|responsible):?\s*',
-                                r'ceo|co-founder|founder:?\s*',
-                            ]
-                            for pattern in prefixes_to_remove:
-                                cleaned = re.sub(pattern, '', cleaned, flags=re.IGNORECASE).strip()
+                            # Parse format: "Fraser Edwards (Co-Founder & CEO), Ankur Banerjee (Co-Founder & CTO), ..."
+                            # Extract all "Name (Title)" pairs
+                            name_title_pattern = r'([A-Z][A-Za-z\s]+?)\s*\(([^)]+)\)'
+                            matches = re.findall(name_title_pattern, cleaned)
                             
-                            # Extract names - typically first few words before comma or "and"
-                            # Look for capitalized name patterns (e.g., "Fraser Edwards", "Ankur Banerjee")
-                            name_pattern = r'([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)'
-                            names = re.findall(name_pattern, cleaned)
-                            if names:
-                                # Take first name (or first two if separated by "and")
-                                first_name = names[0]
-                                if ' and ' in cleaned.lower() and len(names) > 1:
-                                    # If there's an "and", try to get both names
-                                    parts = re.split(r'\s+and\s+', cleaned, flags=re.IGNORECASE)
-                                    if len(parts) > 1:
-                                        # Get first name from first part, second name from second part
-                                        name1_match = re.search(name_pattern, parts[0])
-                                        name2_match = re.search(name_pattern, parts[1])
-                                        if name1_match and name2_match:
-                                            cleaned = f"{name1_match.group(1)} and {name2_match.group(1)}"
-                                        else:
-                                            cleaned = first_name
-                                    else:
-                                        cleaned = first_name
-                                else:
-                                    cleaned = first_name
+                            names_list = []
+                            titles_list = []
+                            
+                            if matches:
+                                # We found names with titles in parentheses
+                                for name_match, title_match in matches:
+                                    # Clean up name (remove extra whitespace)
+                                    name_clean = ' '.join(name_match.split()).strip()
+                                    if name_clean:
+                                        names_list.append(name_clean)
+                                    
+                                    # Clean up title (take first title if multiple separated by comma)
+                                    title_clean = title_match.split(',')[0].strip()  # Take first title if multiple
+                                    if title_clean:
+                                        titles_list.append(title_clean)
+                                
+                                # Store comma-separated names
+                                if names_list:
+                                    cleaned = ', '.join(names_list)
+                                    
+                                    # Also extract and store titles for Person of Interest Work Title field
+                                    if titles_list:
+                                        # Check if Person of Interest Work Title is in headers and empty
+                                        if "Person of Interest Work Title" in headers_for_extraction:
+                                            if not rec.get("Person of Interest Work Title", "").strip():
+                                                rec["Person of Interest Work Title"] = ', '.join(titles_list)
+                                                log.info("[perplexity] %s: Extracted Person of Interest Work Title from Person of Interest response", project)
                             else:
-                                # Fallback: take first line and clean it up
-                                cleaned = cleaned.split('\n')[0].split(',')[0].strip()
-                            # Remove common suffixes
-                            cleaned = re.sub(r'\s+(and their job titles?|,?\s*and\s+[^,]+).*$', '', cleaned, flags=re.IGNORECASE).strip()
-                        
-                        # For Person of Interest Work Title, extract just the title
-                        elif field == "Person of Interest Work Title":
-                            import re
-                            # Remove common prefixes
-                            cleaned_lower = cleaned.lower()
-                            prefixes_to_remove = [
-                                r'the key founders? and leaders? of [^,]+ and their job titles? (or roles? )?(are|include):?\s*',
-                                r'job titles? (or roles? )?(are|include|of):?\s*',
-                                r'roles? (are|include|of):?\s*',
-                                r'positions? (are|include|of):?\s*',
-                            ]
-                            for pattern in prefixes_to_remove:
-                                cleaned = re.sub(pattern, '', cleaned, flags=re.IGNORECASE).strip()
-                            
-                            # Extract title - look for common title patterns
-                            title_patterns = [
-                                r'(Co-Founder)',
-                                r'(CEO|Chief Executive Officer)',
-                                r'(CTO|Chief Technology Officer)',
-                                r'(COO|Chief Operating Officer)',
-                                r'(CFO|Chief Financial Officer)',
-                                r'(Founder)',
-                                r'(Director)',
-                                r'(President)',
-                            ]
-                            for pattern in title_patterns:
-                                match = re.search(pattern, cleaned, re.IGNORECASE)
-                                if match:
-                                    cleaned = match.group(1)
-                                    break
-                            
-                            # If no pattern match, take first meaningful word/phrase
-                            if len(cleaned) > 50 or ',' in cleaned:
-                                # Try to extract from first clause
-                                first_part = cleaned.split(',')[0].split('\n')[0].strip()
-                                # Remove common words
-                                first_part = re.sub(r'^(the|is|are|as|at|of|for)\s+', '', first_part, flags=re.IGNORECASE).strip()
-                                if len(first_part) < 30:
-                                    cleaned = first_part
+                                # Fallback: try to extract names without parentheses format
+                                # Remove common prefixes
+                                prefixes_to_remove = [
+                                    r'the founders? (and key leaders? )?of (the )?[^,]+( are| include)?:?\s*',
+                                    r'founders? (and|&) (key )?leaders? (of|include|are):?\s*',
+                                    r'key leaders? (and|&) founders? (of|include|are):?\s*',
+                                    r'founders? (of|include|are):?\s*',
+                                    r'key leaders? (of|include|are):?\s*',
+                                    r'leaders? (of|include|are):?\s*',
+                                    r'person (of interest|responsible):?\s*',
+                                    r'ceo|co-founder|founder:?\s*',
+                                ]
+                                for pattern in prefixes_to_remove:
+                                    cleaned = re.sub(pattern, '', cleaned, flags=re.IGNORECASE).strip()
+                                
+                                # Extract names using name pattern
+                                name_pattern = r'([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)'
+                                names = re.findall(name_pattern, cleaned)
+                                if names:
+                                    # Join all names with commas
+                                    cleaned = ', '.join(names[:10])  # Limit to 10 names
                                 else:
-                                    cleaned = first_part.split()[0]  # Just first word if still too long
+                                    # Fallback: take first line and clean it up
+                                    cleaned = cleaned.split('\n')[0].split(',')[0].strip()
+                                    # Remove common suffixes
+                                    cleaned = re.sub(r'\s+(and their job titles?|,?\s*and\s+[^,]+).*$', '', cleaned, flags=re.IGNORECASE).strip()
                         
                         # For Affiliated Entity / Partner, extract entity/partner names
                         elif field == "Affiliated Entity / Partner":
@@ -708,16 +699,29 @@ def main():
                                 cleaned = re.sub(pattern, '', cleaned, flags=re.IGNORECASE).strip()
                             
                             # Extract entity name - typically a company name with "Limited", "Foundation", etc.
-                            # Look for capitalized entity names
-                            entity_pattern = r'([A-Z][^,.\n]+?(?:Limited|Foundation|Inc\.?|Ltd\.?|Corp\.?|LLC|AG|GmbH)?)'
+                            # Look for capitalized entity names - match full name including suffix words
+                            # Pattern: One or more capitalized words (with optional lowercase), optionally ending with suffix
+                            # Also try to extract parenthetical short name if present (e.g., "Cheqd Foundation Limited (Cheqd)")
+                            entity_pattern = r'([A-Z][A-Za-z]+(?:\s+[A-Z][A-Za-z]+)*(?:\s+(?:Limited|Foundation|Inc\.?|Ltd\.?|Corp\.?|LLC|AG|GmbH))?)'
                             matches = re.findall(entity_pattern, cleaned)
-                            if matches:
-                                cleaned = matches[0].strip()
+                            
+                            # Also check for parenthetical short name pattern: "Full Name (Short Name)"
+                            parenthetical_pattern = r'([A-Z][A-Za-z]+(?:\s+[A-Z][A-Za-z]+)*(?:\s+(?:Limited|Foundation|Inc\.?|Ltd\.?|Corp\.?|LLC|AG|GmbH))?)\s*\(([A-Za-z\s]+)\)'
+                            parenthetical_match = re.search(parenthetical_pattern, cleaned)
+                            
+                            if parenthetical_match:
+                                # Found format: "Full Name (Short Name)" - use this
+                                full_name = parenthetical_match.group(1).strip()
+                                short_name = parenthetical_match.group(2).strip()
+                                cleaned = f"{full_name} ({short_name})"
+                            elif matches:
+                                # Take the longest match (most complete entity name)
+                                cleaned = max(matches, key=len).strip()
                             else:
                                 # Fallback: take first line up to comma or period
                                 cleaned = cleaned.split(',')[0].split('.')[0].split('\n')[0].strip()
                             
-                            # Remove trailing punctuation
+                            # Remove trailing punctuation (but keep parentheses if present)
                             cleaned = re.sub(r'[.,;]+$', '', cleaned).strip()
                         
                         # For long responses (Mission, Tech Stack), summarize using OpenAI if verbose
