@@ -27,7 +27,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 from app.utils.logger import setup_logging
-from app.utils.accuracy import print_accuracy_report
+from app.utils.accuracy import print_accuracy_report, print_coverage_report
 from app.utils.codebook_import import import_excel_to_codebook
 from app.workers.searcher import search_urls
 from app.workers.scraper import scrape_urls
@@ -87,9 +87,19 @@ def parse_args():
         help="Run accuracy check on existing output.xlsx and exit"
     )
     p.add_argument(
+        "--check-coverage",
+        action="store_true",
+        help="Run coverage check on existing output.xlsx and exit"
+    )
+    p.add_argument(
+        "--with-accuracy-check",
+        action="store_true",
+        help="Run accuracy check after extraction completes (optional flag)"
+    )
+    p.add_argument(
         "--project",
         type=str,
-        help="Single project name for accuracy check (used with --check-accuracy)"
+        help="Single project name for accuracy/coverage check (used with --check-accuracy or --check-coverage)"
     )
     p.add_argument(
         "--import-codebook",
@@ -126,6 +136,12 @@ def main():
     if args.check_accuracy:
         output_xlsx = DATA_DIR / "output.xlsx"
         print_accuracy_report(output_xlsx, project=args.project)
+        return
+    
+    # Handle --check-coverage flag (quick coverage check without running extraction)
+    if args.check_coverage:
+        output_xlsx = DATA_DIR / "output.xlsx"
+        print_coverage_report(output_xlsx, project=args.project)
         return
     
     # Handle --import-codebook flag (import Excel to JSON)
@@ -825,12 +841,13 @@ def main():
     )
     print(f"Done → {output_xlsx}")
     
-    # Step 5: Optional accuracy check (controlled by .env parameter)
-    auto_check_accuracy = os.getenv("AUTO_CHECK_ACCURACY", "false").lower() == "true"
-    if auto_check_accuracy:
-        log.info("[main] Running automatic accuracy check...")
+    # Step 5: Optional accuracy check (controlled by flag or .env parameter)
+    # Check flag first, then fall back to env var for backward compatibility
+    should_check_accuracy = args.with_accuracy_check or os.getenv("AUTO_CHECK_ACCURACY", "false").lower() == "true"
+    if should_check_accuracy:
+        log.info("[main] Running accuracy check after extraction...")
         print("\n" + "=" * 70)
-        print("AUTOMATIC ACCURACY CHECK")
+        print("ACCURACY CHECK")
         print("=" * 70)
         print_accuracy_report(output_xlsx)
 

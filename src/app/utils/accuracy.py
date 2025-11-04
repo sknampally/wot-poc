@@ -186,6 +186,104 @@ def calculate_accuracy(
     return project_results, overall_accuracy
 
 
+def calculate_coverage(
+    output_xlsx: Path,
+    projects: Optional[List[str]] = None,
+    exclude_fields: Optional[List[str]] = None
+) -> Tuple[Dict[str, Dict[str, float]], float]:
+    """
+    Calculate data coverage for each project and overall coverage.
+    
+    Coverage = (filled fields / total fields) * 100
+    A field is considered "filled" if it has a non-empty value.
+    Note: "Failed to disclose" is a valid response for some fields but doesn't count as "filled"
+    (it means information was not found, so it's effectively empty).
+    
+    Args:
+        output_xlsx: Path to output Excel file with AI sheet
+        projects: List of project names to analyze (None = all projects in AI sheet)
+        exclude_fields: Fields to exclude from coverage calculation (None = use defaults)
+    
+    Returns:
+        Tuple of (project_results, overall_coverage) where:
+        - project_results: Dict mapping project name to coverage info
+        - overall_coverage: Overall coverage percentage
+    """
+    # Default excluded fields (same as accuracy)
+    if exclude_fields is None:
+        exclude_fields = ['Live Source', 'Archived Source', 'Product Name', 'ID', 'Logo', '_evidence']
+    
+    # Load AI extraction sheet
+    try:
+        df_ai = pd.read_excel(output_xlsx, sheet_name='AI', dtype=str)
+    except FileNotFoundError:
+        raise FileNotFoundError(f"{output_xlsx} not found. Run extraction first.")
+    except Exception as e:
+        raise RuntimeError(f"Error reading AI sheet: {e}")
+    
+    # Get all data columns (exclude source columns and internal columns)
+    all_columns = df_ai.columns.tolist()
+    data_columns = [
+        col for col in all_columns
+        if not col.startswith('Source ')
+        and not col.startswith('Archived Source ')
+        and col not in exclude_fields
+    ]
+    
+    # Get list of projects to analyze
+    if projects is None:
+        # Analyze all projects in the AI sheet
+        projects = df_ai['Product Name'].dropna().unique().tolist()
+    
+    project_results = {}
+    total_fields = 0
+    total_filled = 0
+    
+    for project in projects:
+        proj_data = df_ai[df_ai['Product Name'] == project]
+        if len(proj_data) == 0:
+            project_results[project] = {'coverage': 0.0, 'filled': 0, 'total': 0, 'failed_to_disclose': 0, 'empty': 0, 'found': False}
+            continue
+        
+        row = proj_data.iloc[0]
+        
+        filled_count = 0
+        failed_to_disclose_count = 0
+        empty_count = 0
+        
+        for col in data_columns:
+            val = str(row.get(col, '')).strip()
+            val_lower = val.lower()
+            
+            # Check if field is empty
+            if not val or val_lower in ('nan', 'none', '', 'n/a'):
+                empty_count += 1
+            # Check if field has "Failed to disclose" (valid response but not considered "filled")
+            elif 'failed to disclose' in val_lower:
+                failed_to_disclose_count += 1
+            else:
+                filled_count += 1
+        
+        total_cols = len(data_columns)
+        coverage = (filled_count / total_cols * 100) if total_cols > 0 else 0
+        
+        project_results[project] = {
+            'coverage': coverage,
+            'filled': filled_count,
+            'total': total_cols,
+            'failed_to_disclose': failed_to_disclose_count,
+            'empty': empty_count,
+            'found': True
+        }
+        
+        total_fields += total_cols
+        total_filled += filled_count
+    
+    overall_coverage = (total_filled / total_fields * 100) if total_fields > 0 else 0
+    
+    return project_results, overall_coverage
+
+
 def print_accuracy_report(output_xlsx: Path, projects: Optional[List[str]] = None, project: Optional[str] = None) -> None:
     """
     Print a formatted accuracy report.
@@ -264,21 +362,92 @@ def print_accuracy_report(output_xlsx: Path, projects: Optional[List[str]] = Non
         print("❌ Needs improvement. Check SerpAPI key and sources.")
 
 
+def print_coverage_report(output_xlsx: Path, projects: Optional[List[str]] = None, project: Optional[str] = None) -> None:
+    """
+    Print a formatted coverage report showing what percentage of fields are filled.
+    
+    Args:
+        output_xlsx: Path to output Excel file with AI sheet
+        projects: List of project names to analyze (None = all projects in AI sheet)
+        project: Single project name to analyze (overrides projects if provided)
+    """
+    # If single project specified, use that; otherwise use projects list
+    if project:
+        projects = [project]
+
+    project_results, overall_coverage = calculate_coverage(output_xlsx, projects)
+    
+    print("=" * 70)
+    print("Data Coverage Analysis")
+    print("=" * 70)
+    print("Note: Coverage = (filled fields / total fields) * 100")
+    print("      'Failed to disclose' is a valid response but doesn't count as 'filled'")
+    print("      Only Data Columns included (Product Name, ID, Logo, and source fields excluded)")
+    print()
+    
+    for project, results in sorted(project_results.items()):
+        if not results.get('found'):
+            print(f"{project}: ⚠️  Not found in AI extraction results")
+            continue
+        
+        coverage = results['coverage']
+        filled = results['filled']
+        total = results['total']
+        failed_to_disclose = results.get('failed_to_disclose', 0)
+        empty = results.get('empty', 0)
+        
+        status = "✅" if coverage >= 80 else "⚠️" if coverage >= 60 else "❌"
+        print(f"{status} {project}:")
+        print(f"   Coverage: {coverage:.1f}% ({filled}/{total} fields filled)")
+        if failed_to_disclose > 0:
+            print(f"   └─ 'Failed to disclose': {failed_to_disclose} fields")
+        if empty > 0:
+            print(f"   └─ Empty: {empty} fields")
+        print()
+    
+    print("=" * 70)
+    
+    # Calculate totals
+    total_filled = sum(r['filled'] for r in project_results.values())
+    total_fields = sum(r['total'] for r in project_results.values())
+    total_failed = sum(r.get('failed_to_disclose', 0) for r in project_results.values())
+    total_empty = sum(r.get('empty', 0) for r in project_results.values())
+    
+    print(f"Overall Coverage: {overall_coverage:.1f}% ({total_filled}/{total_fields} fields filled)")
+    if total_failed > 0:
+        print(f"   └─ 'Failed to disclose': {total_failed} fields")
+    if total_empty > 0:
+        print(f"   └─ Empty: {total_empty} fields")
+    print("=" * 70)
+    
+    if overall_coverage >= 80:
+        print("✅ Excellent coverage! Most fields are populated.")
+    elif overall_coverage >= 60:
+        print("⚠️  Good coverage, but some fields need attention.")
+    else:
+        print("❌ Low coverage. Consider improving extraction strategies.")
+
+
 def main():
     """Main entry point for running accuracy check from command line."""
     import argparse
     
-    parser = argparse.ArgumentParser(description="Check accuracy of AI extraction results")
+    parser = argparse.ArgumentParser(description="Check accuracy or coverage of AI extraction results")
     parser.add_argument(
         "--projects",
         type=str,
-        help='Comma-separated project names to check (e.g., "cheqd,MÁS"). If not provided, checks all projects with manual data.'
+        help='Comma-separated project names to check (e.g., "cheqd,MÁS"). If not provided, checks all available projects.'
     )
     parser.add_argument(
         "--output",
         type=str,
         default="data/output.xlsx",
         help="Path to output Excel file (default: data/output.xlsx)"
+    )
+    parser.add_argument(
+        "--check-coverage",
+        action="store_true",
+        help="Check data coverage instead of accuracy (default: check accuracy)"
     )
     args = parser.parse_args()
     
@@ -293,7 +462,10 @@ def main():
     if args.projects:
         projects = [p.strip() for p in args.projects.split(",") if p.strip()]
     
-    print_accuracy_report(output_xlsx, projects=projects)
+    if args.check_coverage:
+        print_coverage_report(output_xlsx, projects=projects)
+    else:
+        print_accuracy_report(output_xlsx, projects=projects)
 
 
 if __name__ == '__main__':

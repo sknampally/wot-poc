@@ -65,8 +65,9 @@ LLM_MAX_TOKENS=4000                            # Maximum output tokens
 # ====== Search Configuration ======
 MAX_URLS_PER_PROJECT=50                        # Maximum URLs to collect per project
 
-# ====== Auto-Accuracy Check ======
-AUTO_CHECK_ACCURACY=false                      # Set to 'true' to auto-run accuracy check after extraction
+# ====== Optional: Auto-Accuracy Check ======
+AUTO_CHECK_ACCURACY=false                      # Set to 'true' to auto-run accuracy check after extraction (optional, backward compatibility)
+                                                # Alternatively, use --with-accuracy-check flag when running extraction
 
 # ====== Optional: Ollama (local LLM) ======
 OLLAMA_HOST=http://localhost:11434
@@ -120,17 +121,48 @@ python src/main.py --targets all
 - `--provider`: `openai` (default) or `ollama`
 - `--model`: Model name (default: `gpt-4o-mini`)
 - `--max-output-tokens`: Max tokens for LLM response (default: 4000)
+- `--with-accuracy-check`: Run accuracy check after extraction completes (optional)
 - `--check-accuracy`: Run accuracy check only (skip extraction)
+- `--check-coverage`: Run coverage check only (skip extraction)
+- `--project`: Single project name for accuracy/coverage check (used with --check-accuracy or --check-coverage)
 - `--import-codebook`: Import codebook from Excel and exit
 
-### Step 4  Check accuracy
+### Step 4  Check accuracy (Optional)
+Accuracy check compares AI-extracted data against manual/client data (if available).
+
 ```bash
-# Method 1: Quick accuracy check
+# Method 1: Run accuracy check after extraction (using flag)
+python src/main.py --targets "cheqd" --with-accuracy-check
+
+# Method 2: Quick standalone accuracy check
 python src/main.py --check-accuracy
 
-# Method 2: Auto-run after extraction (set AUTO_CHECK_ACCURACY=true in .env)
-# Accuracy check automatically runs after each extraction
+# Method 3: Check accuracy for a single project
+python src/main.py --check-accuracy --project "cheqd"
+
+# Method 4: Auto-run after extraction (set AUTO_CHECK_ACCURACY=true in .env)
+# Accuracy check automatically runs after each extraction (backward compatibility)
 ```
+
+### Step 5  Check coverage
+Coverage shows what percentage of fields are filled with actual data (non-empty values).
+
+```bash
+# Method 1: Check coverage for all projects
+python src/main.py --check-coverage
+
+# Method 2: Check coverage for specific projects
+python src/main.py --check-coverage --project "cheqd"
+
+# Method 3: Using the accuracy utility directly
+python -m app.utils.accuracy --check-coverage --projects "cheqd,Diwala"
+```
+
+**Coverage Calculation:**
+- Coverage = (filled fields / total fields) × 100
+- A field is considered "filled" if it has a non-empty value
+- "Failed to disclose" is a valid response but doesn't count as "filled" (it means information was not found)
+- Only Data Columns are included (Product Name, ID, Logo, and source fields are excluded)
 
 Open `data/output.xlsx` to see:
 - **Input sheet**: Original data
@@ -181,7 +213,29 @@ The system calculates accuracy **only for Data Columns**:
 
 Text fields use semantic similarity matching (60% threshold) - meaning if two texts convey the same meaning, they're considered a match.
 
-## 🧰  9  Troubleshooting
+## 📊  9  Coverage Metrics
+
+Coverage measures what percentage of fields are filled with actual data (non-empty values).
+
+**Coverage Calculation:**
+- Coverage = (filled fields / total fields) × 100
+- A field is considered "filled" if it has a non-empty value
+- "Failed to disclose" is a valid response but doesn't count as "filled" (it means information was not found)
+
+**Fields Included:**
+- ✅ All data fields from `wot_data_definations.xlsx` where `extraction_needed=Y`
+
+**Fields Excluded:**
+- ❌ Product Name, ID, Logo (internal/reference fields)
+- ❌ Source columns (Live Source, Archived Source fields)
+- ❌ `_evidence` (internal metadata)
+
+**Coverage Thresholds:**
+- ✅ ≥80%: Excellent coverage
+- ⚠️ 60-79%: Good coverage, some fields need attention
+- ❌ <60%: Low coverage, consider improving extraction strategies
+
+## 🧰  10  Troubleshooting
 
 | Issue | Solution |
 |-------|----------|
@@ -191,7 +245,7 @@ Text fields use semantic similarity matching (60% threshold) - meaning if two te
 | Low accuracy | Check SerpAPI key is active, increase `MAX_URLS_PER_PROJECT`, verify codebook imported |
 | Wrong entity extracted | Ensure `Website` column in `input.xlsx` has correct URLs for known projects |
 
-## 💡  10  Tips for Better Results
+## 💡  11  Tips for Better Results
 
 - **Known Websites**: Fill `Website` column in `input.xlsx` - helps target correct entity
 - **Codebook**: Keep `data/wot_data_definations.xlsx` updated with field definitions
@@ -218,7 +272,7 @@ This file contains:
 
 **Important**: Changes to `prompts.json` take effect immediately on the next run - no code redeployment needed!
 
-## 🧩  11  Folder Structure
+## 🧩  12  Folder Structure
 
 ```
 wot-poc/
@@ -254,7 +308,7 @@ wot-poc/
   └─ README.md
 ```
 
-## ✅  12  Summary
+## ✅  13  Summary
 
 This POC automatically:
 1. ✅ Searches the web for project information (SerpAPI)
@@ -263,5 +317,6 @@ This POC automatically:
 4. ✅ Exports results to Excel with source tracking
 5. ✅ Compares AI results with manual data (if available)
 6. ✅ Calculates accuracy metrics (Data Columns only)
+7. ✅ Calculates coverage metrics (percentage of filled fields)
 
 **Current Status**: Working on improving extraction accuracy to reach 60%+ on validation projects through prompt engineering and better source selection.

@@ -129,7 +129,7 @@
     },
     "Credential And Key Storage": {
       "llm_hint": "CRITICAL: Look for information about where credentials and keys are stored. Search for: 'user-controlled keys', 'exclusive custody', 'wallet storage', 'HSM', 'cloud storage', 'user custody', 'key management'. If project mentions user has exclusive custody of credentials/keys, use 'True'. If it mentions custodial or third-party storage, use 'False'. If no information found, use 'Failed to disclose'.",
-      "use_perplexity": "N",
+      "use_perplexity": "Y",
       "perplexity_query_template": "Does {project} explicitly mention that holders have exclusive custody of their credentials and keys? Answer must be one of: True, False, or Failed to disclose. 'Failed to disclose' will be used whenever there is no information about the storage of credentials and keys at all.",
       "perplexity_system_prompt": "Extract and return ONLY the answer: True, False, or Failed to disclose. No explanations.",
       "perplexity_max_tokens": 100
