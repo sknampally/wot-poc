@@ -401,6 +401,88 @@ def main():
                                 # Default if unclear
                                 cleaned = "Failed to disclose"
                         
+                        # For DLT Data Availability, extract only the exact enum value
+                        elif field == "DLT Data Availability":
+                            # Map to exact enum values
+                            dlt_values = [
+                                "Complete DLT Data",
+                                "Specifies DLT Technology but no DLT Instance",
+                                "Uses DLT no specifications",
+                                "No DLT data at all"
+                            ]
+                            cleaned_lower = cleaned.lower()
+                            for val in dlt_values:
+                                if val.lower() in cleaned_lower:
+                                    cleaned = val
+                                    break
+                        
+                        # For Has Exportable Credentials, normalize to True/False/Failed to disclose
+                        elif field == "Has Exportable Credentials":
+                            cleaned_lower = cleaned.lower()
+                            if "yes" in cleaned_lower or "true" in cleaned_lower:
+                                cleaned = "True"
+                            elif "no" in cleaned_lower or "false" in cleaned_lower:
+                                cleaned = "False"
+                            elif "failed to disclose" in cleaned_lower:
+                                cleaned = "Failed to disclose"
+                            else:
+                                # Default if unclear
+                                cleaned = "Failed to disclose"
+                        
+                        # For Does it use SSI Technology?, normalize to True/False only
+                        elif field == "Does it use SSI Technology?":
+                            cleaned_lower = cleaned.lower()
+                            if "yes" in cleaned_lower or "true" in cleaned_lower:
+                                cleaned = "True"
+                            elif "no" in cleaned_lower or "false" in cleaned_lower:
+                                cleaned = "False"
+                            else:
+                                # Use empty string for boolean fields not in allowed list
+                                cleaned = ""
+                        
+                        # For Politically Involved?, normalize to True/False only
+                        elif field == "Politically Involved?":
+                            cleaned_lower = cleaned.lower()
+                            if "yes" in cleaned_lower or "true" in cleaned_lower:
+                                cleaned = "True"
+                            elif "no" in cleaned_lower or "false" in cleaned_lower:
+                                cleaned = "False"
+                            else:
+                                # Use empty string for boolean fields not in allowed list
+                                cleaned = ""
+                        
+                        # For Credential And Key Storage, normalize to True/False/Failed to disclose
+                        elif field == "Credential And Key Storage":
+                            cleaned_lower = cleaned.lower()
+                            if "yes" in cleaned_lower or "true" in cleaned_lower:
+                                cleaned = "True"
+                            elif "no" in cleaned_lower or "false" in cleaned_lower:
+                                cleaned = "False"
+                            elif "failed to disclose" in cleaned_lower:
+                                cleaned = "Failed to disclose"
+                            else:
+                                # Default if unclear
+                                cleaned = "Failed to disclose"
+                        
+                        # For Targets fields (Holders, Issuers, Verifiers), normalize to True/False/Failed to disclose
+                        elif field in ["Targets Holders", "Targets Issuers", "Targets Verifiers"]:
+                            cleaned_lower = cleaned.lower().strip()
+                            # Remove common punctuation/formatting that Perplexity might add
+                            cleaned_lower = cleaned_lower.rstrip('.,;!?').strip()
+                            
+                            # Check for True/False more aggressively - look for exact word matches or as first word
+                            if (cleaned_lower == "true" or cleaned_lower.startswith("true ") or 
+                                "true" in cleaned_lower.split()[:2] or "yes" in cleaned_lower.split()[:2]):
+                                cleaned = "True"
+                            elif (cleaned_lower == "false" or cleaned_lower.startswith("false ") or 
+                                  "false" in cleaned_lower.split()[:2] or "no" in cleaned_lower.split()[:2]):
+                                cleaned = "False"
+                            elif "failed to disclose" in cleaned_lower:
+                                cleaned = "Failed to disclose"
+                            else:
+                                # Default if unclear
+                                cleaned = "Failed to disclose"
+                        
                         # For long responses (Mission, Tech Stack), summarize using OpenAI if verbose
                         elif len(cleaned) > 200 and field in ["Mission Statement", "Tech Stack Descriptions"]:
                             try:
