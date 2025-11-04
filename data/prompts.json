@@ -136,7 +136,7 @@
     },
     "Targets Holders": {
       "llm_hint": "CRITICAL: Look for features or products for holders/users. Search for: 'wallet', 'holder', 'user wallet', 'mobile wallet', 'digital wallet', 'credential wallet', 'identity wallet', 'hold credentials', 'store credentials'. Check product pages, features, or developer documentation. If project offers wallet or holder features, use 'True'. If no holder features mentioned, use 'False'. If unclear whether project targets holders, use 'Failed to disclose'.",
-      "use_perplexity": "N",
+      "use_perplexity": "Y",
       "perplexity_query_template": "Does {project} provide wallet apps, mobile apps, or user-facing tools specifically for credential holders? Search for explicit mentions of 'wallet', 'holder app', 'mobile wallet', 'user wallet', 'credential wallet' on product pages, features pages, and documentation. CRITICAL: If you find ANY mention of wallet or holder app, answer True. If you search thoroughly and find NO wallet/holder app mentioned, answer False. Only answer 'Failed to disclose' if the website is completely inaccessible. Answer with ONLY one word: True, False, or Failed to disclose.",
       "perplexity_system_prompt": "You MUST return ONLY one word: True, False, or Failed to disclose. No explanations, no periods, no additional text. Just the single word.",
       "perplexity_max_tokens": 100
@@ -144,15 +144,15 @@
     "Targets Issuers": {
       "llm_hint": "CRITICAL: Look for features or products for issuers. Search for: 'issuer', 'issue credentials', 'credential issuance', 'issuer tools', 'issuer platform', 'credential creation'. Check product pages, features, or developer documentation. If project offers issuer/credential creation features, use 'True'. If no issuer features mentioned, use 'False'. If unclear whether project targets issuers, use 'Failed to disclose'.",
       "use_perplexity": "Y",
-      "perplexity_query_template": "Does {project} have features for use by issuers, such as credential issuance solutions? Answer must be one of: True, False, or Failed to disclose. 'Failed to disclose' will be selected if there is no clear indication whether the project is targeted toward issuers or not.",
-      "perplexity_system_prompt": "Extract and return ONLY the answer: True, False, or Failed to disclose. No explanations.",
+      "perplexity_query_template": "Does {project} provide issuer APIs, SDKs, credential issuance tools, or platforms for organizations to issue credentials? Look for explicit mentions of 'issuer API', 'issuance API', 'issue credentials', 'credential issuance', 'issuer tools', 'issuer SDK', 'credential creation', 'issuer platform'. Check developer docs, API documentation, product pages, and features pages. Answer: True if issuance tools/APIs exist, False if no issuer features found, Failed to disclose only if website is inaccessible.",
+      "perplexity_system_prompt": "Extract and return ONLY the answer: True, False, or Failed to disclose. Include source URL. No explanations.",
       "perplexity_max_tokens": 100
     },
     "Targets Verifiers": {
       "llm_hint": "CRITICAL: Look for features or products for verifiers. Search for: 'verifier', 'verify credentials', 'QR reader', 'scan', 'verification tools', 'credential verification'. Check product pages, features, or developer documentation. If project offers verification features, use 'True'. If no verifier features mentioned, use 'False'. If unclear whether project targets verifiers, use 'Failed to disclose'.",
-      "use_perplexity": "N",
+      "use_perplexity": "Y",
       "perplexity_query_template": "Does {project} provide verification APIs, SDKs, QR code readers, or tools for verifiers to verify credentials? Look for explicit mentions of 'verifier API', 'verification API', 'QR reader', 'verify credentials', 'verifier tools', 'verifier SDK'. Check developer docs, API documentation, and features pages. Answer: True if verification tools/APIs exist, False if no verifier features, Failed to disclose only if website inaccessible.",
-      "perplexity_system_prompt": "Extract and return ONLY the answer: True, False, or Failed to disclose. No explanations.",
+      "perplexity_system_prompt": "Extract and return ONLY the answer: True, False, or Failed to disclose. Include source URL. No explanations.",
       "perplexity_max_tokens": 100
     },
     "Politically Involved?": {

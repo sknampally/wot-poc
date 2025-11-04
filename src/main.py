@@ -87,9 +87,9 @@ def parse_args():
         help="Run accuracy check on existing output.xlsx and exit"
     )
     p.add_argument(
-        "--projects",
+        "--project",
         type=str,
-        help='Comma-separated project names to check (for use with --check-accuracy, e.g., "cheqd,MÁS")'
+        help="Single project name for accuracy check (used with --check-accuracy)"
     )
     p.add_argument(
         "--import-codebook",
@@ -125,11 +125,7 @@ def main():
     # Handle --check-accuracy flag (quick accuracy check without running extraction)
     if args.check_accuracy:
         output_xlsx = DATA_DIR / "output.xlsx"
-        # Parse projects if provided
-        projects = None
-        if args.projects:
-            projects = [p.strip() for p in args.projects.split(",") if p.strip()]
-        print_accuracy_report(output_xlsx, projects=projects)
+        print_accuracy_report(output_xlsx, project=args.project)
         return
     
     # Handle --import-codebook flag (import Excel to JSON)
@@ -317,26 +313,26 @@ def main():
                         strict_prompt = field_config.get("perplexity_system_prompt", "Extract and return ONLY the exact value requested. No explanations, no formatting, no additional text. Just the value itself.")
                         max_tokens = field_config.get("perplexity_max_tokens", 200)
                         
-                        # Format query with project name
+                        # Format query with project name (use prompts.json exactly as configured)
                         query = query_template.format(project=project)
-                        if known_website:
-                            # Add website hint if available
-                            query += f" from {known_website}"
                     else:
                         # Fallback to default
                         query = f"{field.lower()} for {project}"
-                        if known_website:
-                            query += f" from {known_website}"
                         max_tokens = 200
                         strict_prompt = "Extract and return ONLY the exact value requested. No explanations, no formatting, no additional text. Just the value itself."
                     
-                    perplexity_response = chat_json(
+                    # Call Perplexity with citations enabled to get source URLs
+                    perplexity_result = chat_json(
                         system=strict_prompt,
                         user=query,
                         provider="perplexity",
                         model="sonar",
                         max_tokens=max_tokens,
+                        return_citations=True,
                     )
+                    
+                    # Perplexity returns tuple (text, citations) when return_citations=True
+                    perplexity_response, perplexity_citations = perplexity_result if isinstance(perplexity_result, tuple) else (perplexity_result, [])
                     
                     if perplexity_response.strip():
                         # Post-process Perplexity response to extract clean value
@@ -368,6 +364,38 @@ def main():
                                     cleaned = org_url[0].rstrip('/')
                                 else:
                                     cleaned = urls[0]
+                            # Remove markdown formatting
+                            cleaned = cleaned.replace('**', '').replace('*', '')
+                        
+                        # For App Store Link, extract first URL from response
+                        elif field == "App Store Link":
+                            import re
+                            # Look for any URL (app store links, download links, etc.)
+                            urls = re.findall(r'https?://[^\s\[\]]+', cleaned, re.IGNORECASE)
+                            if urls:
+                                # Prefer app store URLs if present
+                                app_store_urls = [u for u in urls if any(store in u.lower() for store in ['apps.apple.com', 'play.google.com', 'creds.xyz', 'app', 'download'])]
+                                if app_store_urls:
+                                    cleaned = app_store_urls[0].rstrip('.,;')
+                                else:
+                                    # Use first URL found
+                                    cleaned = urls[0].rstrip('.,;')
+                            # Remove markdown formatting
+                            cleaned = cleaned.replace('**', '').replace('*', '')
+                        
+                        # For Announcement Repositories / News, extract first URL from response
+                        elif field == "Announcement Repositories / News":
+                            import re
+                            # Look for blog, news, or announcement URLs
+                            urls = re.findall(r'https?://[^\s\[\]]+', cleaned, re.IGNORECASE)
+                            if urls:
+                                # Prefer blog/news URLs if present
+                                blog_urls = [u for u in urls if any(keyword in u.lower() for keyword in ['blog', 'news', 'medium.com', 'substack', 'announcement'])]
+                                if blog_urls:
+                                    cleaned = blog_urls[0].rstrip('.,;')
+                                else:
+                                    # Use first URL found
+                                    cleaned = urls[0].rstrip('.,;')
                             # Remove markdown formatting
                             cleaned = cleaned.replace('**', '').replace('*', '')
                         
@@ -476,22 +504,221 @@ def main():
                         
                         # For Targets fields (Holders, Issuers, Verifiers), normalize to True/False/Failed to disclose
                         elif field in ["Targets Holders", "Targets Issuers", "Targets Verifiers"]:
+                            import re
                             cleaned_lower = cleaned.lower().strip()
-                            # Remove common punctuation/formatting that Perplexity might add
-                            cleaned_lower = cleaned_lower.rstrip('.,;!?').strip()
                             
-                            # Check for True/False more aggressively - look for exact word matches or as first word
-                            if (cleaned_lower == "true" or cleaned_lower.startswith("true ") or 
-                                "true" in cleaned_lower.split()[:2] or "yes" in cleaned_lower.split()[:2]):
+                            # Remove source URLs and common prefixes that Perplexity might add
+                            # Remove URLs
+                            cleaned_lower = re.sub(r'https?://[^\s]+', '', cleaned_lower)
+                            # Remove "Source:" prefix
+                            cleaned_lower = re.sub(r'source:?\s*', '', cleaned_lower, flags=re.IGNORECASE)
+                            # Remove common punctuation/formatting
+                            cleaned_lower = cleaned_lower.rstrip('.,;!?\n\r').strip()
+                            
+                            # Take first line only (in case Perplexity added source URL on new line)
+                            first_line = cleaned_lower.split('\n')[0].strip()
+                            first_line = first_line.split('source')[0].strip()  # Remove anything after "source"
+                            
+                            # Check for True/False more aggressively - look anywhere in the first part
+                            # Check for exact matches first
+                            if first_line == "true" or first_line == "yes":
                                 cleaned = "True"
-                            elif (cleaned_lower == "false" or cleaned_lower.startswith("false ") or 
-                                  "false" in cleaned_lower.split()[:2] or "no" in cleaned_lower.split()[:2]):
+                            elif first_line == "false" or first_line == "no":
                                 cleaned = "False"
-                            elif "failed to disclose" in cleaned_lower:
+                            # Check if "true" or "false" appears as a word (case-insensitive)
+                            elif re.search(r'\btrue\b', first_line, re.IGNORECASE) or re.search(r'\byes\b', first_line, re.IGNORECASE):
+                                cleaned = "True"
+                            elif re.search(r'\bfalse\b', first_line, re.IGNORECASE) or re.search(r'\bno\b', first_line, re.IGNORECASE):
+                                cleaned = "False"
+                            elif "failed to disclose" in first_line:
                                 cleaned = "Failed to disclose"
                             else:
-                                # Default if unclear
+                                # Default if unclear - but log it for debugging
+                                log.warning("[perplexity] %s: Could not parse %s response, defaulting to Failed to disclose. Response: %s", project, field, cleaned[:100])
                                 cleaned = "Failed to disclose"
+                        
+                        # For Person of Interest, extract just the person name(s)
+                        elif field == "Person of Interest":
+                            import re
+                            # Remove common prefixes like "The founders and key leaders of", "founders are", etc.
+                            cleaned_lower = cleaned.lower()
+                            prefixes_to_remove = [
+                                r'the founders? (and key leaders? )?of (the )?[^,]+( are| include)?:?\s*',
+                                r'founders? (and|&) (key )?leaders? (of|include|are):?\s*',
+                                r'key leaders? (and|&) founders? (of|include|are):?\s*',
+                                r'founders? (of|include|are):?\s*',
+                                r'key leaders? (of|include|are):?\s*',
+                                r'leaders? (of|include|are):?\s*',
+                                r'person (of interest|responsible):?\s*',
+                                r'ceo|co-founder|founder:?\s*',
+                            ]
+                            for pattern in prefixes_to_remove:
+                                cleaned = re.sub(pattern, '', cleaned, flags=re.IGNORECASE).strip()
+                            
+                            # Extract names - typically first few words before comma or "and"
+                            # Look for capitalized name patterns (e.g., "Fraser Edwards", "Ankur Banerjee")
+                            name_pattern = r'([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)'
+                            names = re.findall(name_pattern, cleaned)
+                            if names:
+                                # Take first name (or first two if separated by "and")
+                                first_name = names[0]
+                                if ' and ' in cleaned.lower() and len(names) > 1:
+                                    # If there's an "and", try to get both names
+                                    parts = re.split(r'\s+and\s+', cleaned, flags=re.IGNORECASE)
+                                    if len(parts) > 1:
+                                        # Get first name from first part, second name from second part
+                                        name1_match = re.search(name_pattern, parts[0])
+                                        name2_match = re.search(name_pattern, parts[1])
+                                        if name1_match and name2_match:
+                                            cleaned = f"{name1_match.group(1)} and {name2_match.group(1)}"
+                                        else:
+                                            cleaned = first_name
+                                    else:
+                                        cleaned = first_name
+                                else:
+                                    cleaned = first_name
+                            else:
+                                # Fallback: take first line and clean it up
+                                cleaned = cleaned.split('\n')[0].split(',')[0].strip()
+                            # Remove common suffixes
+                            cleaned = re.sub(r'\s+(and their job titles?|,?\s*and\s+[^,]+).*$', '', cleaned, flags=re.IGNORECASE).strip()
+                        
+                        # For Person of Interest Work Title, extract just the title
+                        elif field == "Person of Interest Work Title":
+                            import re
+                            # Remove common prefixes
+                            cleaned_lower = cleaned.lower()
+                            prefixes_to_remove = [
+                                r'the key founders? and leaders? of [^,]+ and their job titles? (or roles? )?(are|include):?\s*',
+                                r'job titles? (or roles? )?(are|include|of):?\s*',
+                                r'roles? (are|include|of):?\s*',
+                                r'positions? (are|include|of):?\s*',
+                            ]
+                            for pattern in prefixes_to_remove:
+                                cleaned = re.sub(pattern, '', cleaned, flags=re.IGNORECASE).strip()
+                            
+                            # Extract title - look for common title patterns
+                            title_patterns = [
+                                r'(Co-Founder)',
+                                r'(CEO|Chief Executive Officer)',
+                                r'(CTO|Chief Technology Officer)',
+                                r'(COO|Chief Operating Officer)',
+                                r'(CFO|Chief Financial Officer)',
+                                r'(Founder)',
+                                r'(Director)',
+                                r'(President)',
+                            ]
+                            for pattern in title_patterns:
+                                match = re.search(pattern, cleaned, re.IGNORECASE)
+                                if match:
+                                    cleaned = match.group(1)
+                                    break
+                            
+                            # If no pattern match, take first meaningful word/phrase
+                            if len(cleaned) > 50 or ',' in cleaned:
+                                # Try to extract from first clause
+                                first_part = cleaned.split(',')[0].split('\n')[0].strip()
+                                # Remove common words
+                                first_part = re.sub(r'^(the|is|are|as|at|of|for)\s+', '', first_part, flags=re.IGNORECASE).strip()
+                                if len(first_part) < 30:
+                                    cleaned = first_part
+                                else:
+                                    cleaned = first_part.split()[0]  # Just first word if still too long
+                        
+                        # For Affiliated Entity / Partner, extract entity/partner names
+                        elif field == "Affiliated Entity / Partner":
+                            import re
+                            # Remove common prefixes
+                            prefixes_to_remove = [
+                                r'the private partners? (or affiliated entities? )?of [^:]+( include| are):?\s*',
+                                r'affiliated entities? (or partners? )?(include|are):?\s*',
+                                r'partners? (include|are):?\s*',
+                            ]
+                            for pattern in prefixes_to_remove:
+                                cleaned = re.sub(pattern, '', cleaned, flags=re.IGNORECASE).strip()
+                            
+                            # Extract entity names - typically capitalized company names
+                            # Look for patterns like "RANDA", "Verio", "Mavennet", "Dock Labs AG (Dock)"
+                            # Split by comma, semicolon, or "and"
+                            entities = re.split(r'[,\n;]|\s+and\s+', cleaned)
+                            entity_names = []
+                            for entity in entities:
+                                entity = entity.strip()
+                                # Remove parenthetical notes like "(Dock)" but keep the entity name
+                                entity = re.sub(r'\s*\([^)]+\)\s*', '', entity).strip()
+                                # Remove trailing punctuation
+                                entity = re.sub(r'[.,;]+$', '', entity).strip()
+                                if entity and len(entity) > 1:
+                                    entity_names.append(entity)
+                            
+                            if entity_names:
+                                # Join with comma and space, limit to first 5-6 entities if too many
+                                cleaned = ', '.join(entity_names[:6])
+                            else:
+                                # Fallback: take first line
+                                cleaned = cleaned.split('\n')[0].split(',')[0].strip()
+                        
+                        # For Private Sector Funding, extract investor/funding entity names
+                        elif field == "Private Sector Funding":
+                            import re
+                            # Remove common prefixes
+                            prefixes_to_remove = [
+                                r'the private sector investors?, venture capital firms?, and corporate sponsors? (of|include|are):?\s*',
+                                r'private sector (investors?|funding|backers?) (include|are):?\s*',
+                                r'investors? (include|are):?\s*',
+                                r'venture capital firms? (include|are):?\s*',
+                                r'funding (from|provided by|sources? include):?\s*',
+                            ]
+                            for pattern in prefixes_to_remove:
+                                cleaned = re.sub(pattern, '', cleaned, flags=re.IGNORECASE).strip()
+                            
+                            # Extract investor names - similar to affiliated entities
+                            # Split by comma, semicolon, or "and"
+                            entities = re.split(r'[,\n;]|\s+and\s+', cleaned)
+                            investor_names = []
+                            for entity in entities:
+                                entity = entity.strip()
+                                # Remove parenthetical notes
+                                entity = re.sub(r'\s*\([^)]+\)\s*', '', entity).strip()
+                                # Remove trailing punctuation
+                                entity = re.sub(r'[.,;]+$', '', entity).strip()
+                                # Skip generic terms
+                                if entity and len(entity) > 1 and entity.lower() not in ['various', 'multiple', 'several']:
+                                    investor_names.append(entity)
+                            
+                            if investor_names:
+                                # Join with comma and space, limit to first 5-6 if too many
+                                cleaned = ', '.join(investor_names[:6])
+                            else:
+                                # Fallback: take first line
+                                cleaned = cleaned.split('\n')[0].split(',')[0].strip()
+                        
+                        # For Managing Entity, extract just the entity name
+                        elif field == "Managing Entity":
+                            import re
+                            # Remove common prefixes
+                            prefixes_to_remove = [
+                                r'the legal entity (that )?(manages?|operates?) (and )?(operates?|manages?) [^ ]+ (is|are):?\s*',
+                                r'managed (and|&) operated by:?\s*',
+                                r'operated by:?\s*',
+                                r'managed by:?\s*',
+                                r'legal entity:?\s*',
+                            ]
+                            for pattern in prefixes_to_remove:
+                                cleaned = re.sub(pattern, '', cleaned, flags=re.IGNORECASE).strip()
+                            
+                            # Extract entity name - typically a company name with "Limited", "Foundation", etc.
+                            # Look for capitalized entity names
+                            entity_pattern = r'([A-Z][^,.\n]+?(?:Limited|Foundation|Inc\.?|Ltd\.?|Corp\.?|LLC|AG|GmbH)?)'
+                            matches = re.findall(entity_pattern, cleaned)
+                            if matches:
+                                cleaned = matches[0].strip()
+                            else:
+                                # Fallback: take first line up to comma or period
+                                cleaned = cleaned.split(',')[0].split('.')[0].split('\n')[0].strip()
+                            
+                            # Remove trailing punctuation
+                            cleaned = re.sub(r'[.,;]+$', '', cleaned).strip()
                         
                         # For long responses (Mission, Tech Stack), summarize using OpenAI if verbose
                         elif len(cleaned) > 200 and field in ["Mission Statement", "Tech Stack Descriptions"]:
@@ -518,6 +745,35 @@ def main():
                             cleaned = cleaned.replace('**', '').replace('*', '').replace('_', '').strip()
                         
                         rec[field] = cleaned
+                        
+                        # Store citation URLs as evidence/source for this field
+                        # Add to _evidence array so export_excel can populate source columns
+                        if "_evidence" not in rec:
+                            rec["_evidence"] = []
+                        
+                        if perplexity_citations and len(perplexity_citations) > 0:
+                            # Use first citation URL as the source (most relevant)
+                            citation_url = perplexity_citations[0]
+                            # Add evidence entry (matches format from extractor.py)
+                            rec["_evidence"].append({
+                                "field": field,
+                                "value": cleaned,
+                                "source_url": citation_url,
+                                "source_type": "perplexity",
+                                "confidence": "high",
+                            })
+                            log.info("[perplexity] %s: Stored citation URL for %s: %s", project, field, citation_url)
+                        else:
+                            # If no citations found, still add evidence entry but mark source as Perplexity AI
+                            rec["_evidence"].append({
+                                "field": field,
+                                "value": cleaned,
+                                "source_url": "Perplexity AI search",
+                                "source_type": "perplexity",
+                                "confidence": "medium",
+                            })
+                            log.info("[perplexity] %s: No citation URL found for %s, using fallback", project, field)
+                        
                         log.info("[perplexity] %s: Extracted %s", project, field)
                         print(f"    ✓ Found {field}")
                         

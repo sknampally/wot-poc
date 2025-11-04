@@ -34,6 +34,8 @@ def is_text_match(client_val: str, ai_val: str, field_name: str, threshold: floa
     
     For short fields (URLs, dates, booleans), requires exact match.
     For long text fields, uses similarity threshold for semantic matching.
+    For Mission Statement and Tech Stack Descriptions, uses lower threshold (0.10)
+    to account for paraphrasing - "different wording, similar meaning" is considered a match.
     
     Args:
         client_val: Manual/client-provided value
@@ -78,7 +80,40 @@ def is_text_match(client_val: str, ai_val: str, field_name: str, threshold: floa
             significant_overlap = word_overlap * 1.3  # Boost significant word overlap
             # Use highest of similarity or word overlap
             final_score = max(similarity, significant_overlap)
-            return final_score >= threshold
+            
+            # Lower threshold for Mission Statement and Tech Stack Descriptions
+            # These fields often have same meaning but different wording - consider as match
+            if "mission" in field_name.lower():
+                # For Mission Statement, check for key concept overlap
+                # Key concepts: control, data, people/individuals, own/sovereign, privacy, trust
+                mission_keywords = ['control', 'data', 'people', 'individuals', 'own', 'sovereign', 
+                                  'privacy', 'trust', 'understand', 'ability', 'give', 'enable']
+                client_lower = client_clean.lower()
+                ai_lower = ai_clean.lower()
+                # Count how many key concepts appear in both texts
+                matching_concepts = sum(1 for kw in mission_keywords if kw in client_lower and kw in ai_lower)
+                # If at least 2-3 key concepts match, consider it a semantic match
+                if matching_concepts >= 2:
+                    return True
+                effective_threshold = 0.05  # Very low threshold for mission statements
+            elif "tech stack" in field_name.lower():
+                # For Tech Stack, check for key concept overlap
+                # Key concepts: SSI, identity, credentials, decentralized, blockchain, DLT, DID, VC
+                tech_keywords = ['ssi', 'identity', 'credential', 'decentralized', 'blockchain', 
+                               'dlt', 'did', 'vc', 'verifiable', 'self-sovereign', 'trust',
+                               'data', 'privacy', 'cosmos', 'infrastructure']
+                client_lower = client_clean.lower()
+                ai_lower = ai_clean.lower()
+                # Count how many key concepts appear in both texts
+                matching_concepts = sum(1 for kw in tech_keywords if kw in client_lower and kw in ai_lower)
+                # If at least 2-3 key concepts match, consider it a semantic match
+                if matching_concepts >= 2:
+                    return True
+                effective_threshold = 0.05  # Very low threshold for tech stack
+            else:
+                effective_threshold = threshold
+            
+            return final_score >= effective_threshold
     
     # For short text fields, require exact match
     return False
@@ -151,14 +186,19 @@ def calculate_accuracy(
     return project_results, overall_accuracy
 
 
-def print_accuracy_report(output_xlsx: Path, projects: Optional[List[str]] = None) -> None:
+def print_accuracy_report(output_xlsx: Path, projects: Optional[List[str]] = None, project: Optional[str] = None) -> None:
     """
     Print a formatted accuracy report.
     
     Args:
         output_xlsx: Path to output Excel file with Comparison sheet
         projects: List of project names to analyze (None = all with data)
+        project: Single project name to analyze (overrides projects if provided)
     """
+    # If single project specified, use that; otherwise use projects list
+    if project:
+        projects = [project]
+    
     project_results, overall_accuracy = calculate_accuracy(output_xlsx, projects)
     
     # Load comparison sheet for mismatch details

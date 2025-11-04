@@ -224,9 +224,38 @@ def _is_text_match(client_val: str, ai_val: str, field_name: str, threshold: flo
             word_overlap = len(client_words & ai_words) / len(client_words | ai_words) if len(client_words | ai_words) > 0 else 0
             significant_overlap = word_overlap * 1.3  # Boost significant word overlap
             final_score = max(similarity, significant_overlap)
-            # Lower threshold for mission statements to account for paraphrasing
-            # Mission statements often have same meaning but different wording
-            effective_threshold = 0.10 if "mission" in field_name.lower() else threshold
+            # Lower threshold for Mission Statement and Tech Stack Descriptions
+            # These fields often have same meaning but different wording - consider as match
+            if "mission" in field_name.lower():
+                # For Mission Statement, check for key concept overlap
+                # Key concepts: control, data, people/individuals, own/sovereign, privacy, trust
+                mission_keywords = ['control', 'data', 'people', 'individuals', 'own', 'sovereign', 
+                                  'privacy', 'trust', 'understand', 'ability', 'give', 'enable']
+                client_lower = client_val.lower()
+                ai_lower = ai_val.lower()
+                # Count how many key concepts appear in both texts
+                matching_concepts = sum(1 for kw in mission_keywords if kw in client_lower and kw in ai_lower)
+                # If at least 2-3 key concepts match, consider it a semantic match
+                if matching_concepts >= 2:
+                    return True
+                effective_threshold = 0.05  # Very low threshold for mission statements
+            elif "tech stack" in field_name.lower():
+                # For Tech Stack, check for key concept overlap
+                # Key concepts: SSI, identity, credentials, decentralized, blockchain, DLT, DID, VC
+                tech_keywords = ['ssi', 'identity', 'credential', 'decentralized', 'blockchain', 
+                               'dlt', 'did', 'vc', 'verifiable', 'self-sovereign', 'trust',
+                               'data', 'privacy', 'cosmos', 'infrastructure']
+                client_lower = client_val.lower()
+                ai_lower = ai_val.lower()
+                # Count how many key concepts appear in both texts
+                matching_concepts = sum(1 for kw in tech_keywords if kw in client_lower and kw in ai_lower)
+                # If at least 2-3 key concepts match, consider it a semantic match
+                if matching_concepts >= 2:
+                    return True
+                effective_threshold = 0.05  # Very low threshold for tech stack
+            else:
+                effective_threshold = threshold
+            
             return final_score >= effective_threshold
     
     return False

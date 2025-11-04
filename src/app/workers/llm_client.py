@@ -138,7 +138,7 @@ def _ollama_chat(messages: List[Dict[str, str]], model: str, max_tokens: int, te
     return json.dumps(data)[:8000]
 
 
-def _perplexity_chat(messages: List[Dict[str, str]], model: str, max_tokens: int, temperature: float = 0) -> str:
+def _perplexity_chat(messages: List[Dict[str, str]], model: str, max_tokens: int, temperature: float = 0) -> tuple[str, List[str]]:
     """
     Call Perplexity Chat Completions API.
     
@@ -153,7 +153,7 @@ def _perplexity_chat(messages: List[Dict[str, str]], model: str, max_tokens: int
         temperature: Sampling temperature
     
     Returns:
-        str: The generated text response
+        tuple[str, List[str]]: (response_text, list_of_citation_urls)
     
     Raises:
         RuntimeError: If OpenAI package not installed or API key missing
@@ -178,7 +178,50 @@ def _perplexity_chat(messages: List[Dict[str, str]], model: str, max_tokens: int
     
     # Extract response text
     txt = (resp.choices[0].message.content or "").strip()
-    return txt
+    
+    # Extract citations from Perplexity response
+    # Perplexity typically includes citations in the text as:
+    # - [1] https://example.com
+    # - Or at the end: Sources: [1] https://example.com [2] https://other.com
+    # - Or inline: ...according to [1](https://example.com)...
+    citations: List[str] = []
+    
+    # Try to get citations from response object (if available)
+    if hasattr(resp, 'citations') and resp.citations:
+        citations = list(resp.citations) if isinstance(resp.citations, (list, tuple)) else [str(resp.citations)]
+    else:
+        # Extract citations from response text
+        import re
+        # Pattern 1: [1] https://example.com or [1](https://example.com)
+        citation_pattern = r'\[\d+\]\(?(https?://[^\s\)\]\n]+)\)?'
+        found_urls = re.findall(citation_pattern, txt)
+        if found_urls:
+            citations.extend(found_urls)
+        
+        # Pattern 2: Look for URLs after "Sources:" or "References:" markers
+        sources_section = re.search(r'(?:Sources?|References?):\s*(.*)', txt, re.IGNORECASE | re.DOTALL)
+        if sources_section:
+            sources_text = sources_section.group(1)
+            urls_in_section = re.findall(r'https?://[^\s\]\n]+', sources_text)
+            citations.extend(urls_in_section)
+        
+        # Pattern 3: Extract all URLs from the response (fallback)
+        # This is less precise but catches any URLs mentioned
+        if not citations:
+            all_urls = re.findall(r'https?://[^\s\)\]\n,;]+', txt)
+            # Deduplicate and filter out common false positives
+            seen = set()
+            for url in all_urls:
+                url_clean = url.rstrip('.,;!?)')
+                # Filter out image URLs, data URIs, and other non-document URLs
+                if url_clean not in seen and not any(skip in url_clean.lower() for skip in ['.png', '.jpg', '.jpeg', '.svg', '.gif', 'data:']):
+                    citations.append(url_clean)
+                    seen.add(url_clean)
+    
+    # Remove duplicates while preserving order
+    citations = list(dict.fromkeys(citations))
+    
+    return txt, citations
 
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=8))
@@ -191,7 +234,8 @@ def chat_json(
     model: str = "gpt-4o-mini",
     max_tokens: int = 800,
     temperature: float = 0.0,
-) -> str:
+    return_citations: bool = False,
+) -> str | tuple[str, List[str]]:
     """
     Unified chat wrapper for LLM APIs.
     
@@ -209,9 +253,11 @@ def chat_json(
         model: Model name (e.g., 'gpt-4o-mini', 'llama3.1', 'sonar')
         max_tokens: Maximum tokens in response
         temperature: Sampling temperature (0 = deterministic)
+        return_citations: If True and provider is 'perplexity', returns tuple (text, citations). Default False.
     
     Returns:
-        str: Raw text response from LLM
+        str: Raw text response from LLM (default)
+        tuple[str, List[str]]: (text, citations) if return_citations=True and provider='perplexity'
     
     Raises:
         ValueError: If no messages provided or unsupported provider
@@ -255,6 +301,11 @@ def chat_json(
     elif prov == "ollama":
         return _ollama_chat(msgs, model=model, max_tokens=max_tokens, temperature=temperature)
     elif prov == "perplexity":
-        return _perplexity_chat(msgs, model=model, max_tokens=max_tokens, temperature=temperature)
+        text, citations = _perplexity_chat(msgs, model=model, max_tokens=max_tokens, temperature=temperature)
+        # Return tuple if citations requested, otherwise just text (for backward compatibility)
+        if return_citations:
+            return text, citations
+        else:
+            return text
     else:
         raise ValueError(f"Unsupported provider: {provider}")
