@@ -22,6 +22,7 @@ import argparse
 import json
 import logging
 import os
+import sys
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -86,6 +87,11 @@ def parse_args():
         help="Run accuracy check on existing output.xlsx and exit"
     )
     p.add_argument(
+        "--projects",
+        type=str,
+        help='Comma-separated project names to check (for use with --check-accuracy, e.g., "cheqd,MÁS")'
+    )
+    p.add_argument(
         "--import-codebook",
         type=str,
         metavar="EXCEL_PATH",
@@ -119,7 +125,11 @@ def main():
     # Handle --check-accuracy flag (quick accuracy check without running extraction)
     if args.check_accuracy:
         output_xlsx = DATA_DIR / "output.xlsx"
-        print_accuracy_report(output_xlsx)
+        # Parse projects if provided
+        projects = None
+        if args.projects:
+            projects = [p.strip() for p in args.projects.split(",") if p.strip()]
+        print_accuracy_report(output_xlsx, projects=projects)
         return
     
     # Handle --import-codebook flag (import Excel to JSON)

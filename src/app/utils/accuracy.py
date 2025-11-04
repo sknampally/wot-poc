@@ -226,13 +226,34 @@ def print_accuracy_report(output_xlsx: Path, projects: Optional[List[str]] = Non
 
 def main():
     """Main entry point for running accuracy check from command line."""
-    output_xlsx = Path('data/output.xlsx')
+    import argparse
+    
+    parser = argparse.ArgumentParser(description="Check accuracy of AI extraction results")
+    parser.add_argument(
+        "--projects",
+        type=str,
+        help='Comma-separated project names to check (e.g., "cheqd,MÁS"). If not provided, checks all projects with manual data.'
+    )
+    parser.add_argument(
+        "--output",
+        type=str,
+        default="data/output.xlsx",
+        help="Path to output Excel file (default: data/output.xlsx)"
+    )
+    args = parser.parse_args()
+    
+    output_xlsx = Path(args.output)
     
     if not output_xlsx.exists():
-        print("Error: data/output.xlsx not found. Run extraction first.")
+        print(f"Error: {output_xlsx} not found. Run extraction first.")
         sys.exit(1)
     
-    print_accuracy_report(output_xlsx)
+    # Parse projects if provided
+    projects = None
+    if args.projects:
+        projects = [p.strip() for p in args.projects.split(",") if p.strip()]
+    
+    print_accuracy_report(output_xlsx, projects=projects)
 
 
 if __name__ == '__main__':
