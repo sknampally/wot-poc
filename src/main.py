@@ -454,7 +454,44 @@ def main():
                             for val in dlt_values:
                                 if val.lower() in cleaned_lower:
                                     cleaned = val
-                                    break
+                        
+                        # For Standard/Protocol Used, strip introductory text and extract comma-separated list
+                        elif field == "Standard/Protocol Used":
+                            import re
+                            # If response contains a colon, everything after the colon is likely the list
+                            if ':' in cleaned:
+                                cleaned = cleaned.split(':', 1)[1].strip()
+                            # Remove common introductory phrases
+                            patterns_to_remove = [
+                                r'^uses? the following (?:specific )?standards?/?(?:or )?protocols?:?\s*',
+                                r'^the following (?:specific )?standards?/?(?:or )?protocols?:?\s*',
+                                r'^following (?:specific )?standards?/?(?:or )?protocols?:?\s*',
+                            ]
+                            for pattern in patterns_to_remove:
+                                cleaned = re.sub(pattern, '', cleaned, flags=re.IGNORECASE)
+                            # Remove leading colons, dashes, or whitespace
+                            cleaned = re.sub(r'^[:\-\s]+', '', cleaned).strip()
+                            # Take only the first line (comma-separated list)
+                            cleaned = cleaned.split('\n')[0].strip()
+                        
+                        # For Regulations Followed, strip introductory text and extract comma-separated list
+                        elif field == "Regulations Followed":
+                            import re
+                            # If response contains a colon, everything after the colon is likely the list
+                            if ':' in cleaned:
+                                cleaned = cleaned.split(':', 1)[1].strip()
+                            # Remove common introductory phrases
+                            patterns_to_remove = [
+                                r'^complies? with the following (?:regulations?|standards?):?\s*',
+                                r'^follows? (?:with )?(?:the following )?regulations?:?\s*',
+                                r'^the following regulations?:?\s*',
+                            ]
+                            for pattern in patterns_to_remove:
+                                cleaned = re.sub(pattern, '', cleaned, flags=re.IGNORECASE)
+                            # Remove leading colons, dashes, or whitespace
+                            cleaned = re.sub(r'^[:\-\s]+', '', cleaned).strip()
+                            # Take only the first line (comma-separated list)
+                            cleaned = cleaned.split('\n')[0].strip()
                         
                         # For Has Exportable Credentials, normalize to True/False/Failed to disclose
                         elif field == "Has Exportable Credentials":

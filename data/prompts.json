@@ -235,16 +235,16 @@
     "Standard/Protocol Used": {
       "llm_hint": "CRITICAL: Look for W3C standards, protocols, or specifications. Check: technical documentation, whitepapers, developer docs. Look for mentions of 'W3C DID', 'W3C VC', 'OAuth', 'OpenID Connect', etc. Extract specific standard/protocol names.",
       "use_perplexity": "Y",
-      "perplexity_query_template": "Which standards or protocols does {project} use? List specific standards/protocols.",
-      "perplexity_system_prompt": "Extract and return ONLY the standard/protocol names separated by commas. No explanations.",
-      "perplexity_max_tokens": 200
+      "perplexity_query_template": "Which standards or protocols does {project} use? List specific standards/protocols. Extract and return ONLY the standard/protocol names separated by commas. No explanations.",
+      "perplexity_system_prompt": "Extract and return ONLY the standard/protocol names separated by commas. No explanations, no introductory text, no descriptions. Just the comma-separated list of standards/protocols.",
+      "perplexity_max_tokens": 300
     },
     "Regulations Followed": {
       "llm_hint": "CRITICAL: Look for GDPR, eIDAS, PSD2, ISO standards, SOC 2 mentions. Check: compliance pages, legal pages, technical docs, about pages. Extract specific regulation names.",
       "use_perplexity": "Y",
-      "perplexity_query_template": "Which regulations does {project} comply with for SSI/DID/VC or privacy? List regulation names.",
-      "perplexity_system_prompt": "Extract and return ONLY the regulation names separated by commas. No explanations.",
-      "perplexity_max_tokens": 200
+      "perplexity_query_template": "Which regulations does {project} comply with for SSI/DID/VC or privacy? List regulation names. Extract and return ONLY the regulation names separated by commas. No explanations.",
+      "perplexity_system_prompt": "Extract and return ONLY the regulation names separated by commas. No explanations, no introductory text, no descriptions. Just the comma-separated list of regulations.",
+      "perplexity_max_tokens": 300
     },
     "Geographical Focus": {
       "llm_hint": "CRITICAL: Look for country names where the project operates or focuses. Check: 'Locations', 'Markets', 'Coverage', 'About' pages, press releases. Extract specific country names. If 3+ countries, it's 'International'.",

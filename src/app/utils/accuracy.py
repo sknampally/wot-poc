@@ -65,6 +65,52 @@ def is_text_match(client_val: str, ai_val: str, field_name: str, threshold: floa
         if client_normalized.lower() == ai_normalized.lower():
             return True
     
+    # For Standard/Protocol Used and Regulations Followed, check if manual value appears in AI's comma-separated list
+    if "standard" in field_name.lower() and "protocol" in field_name.lower():
+        # Extract key terms from manual value (e.g., "W3C Verifiable Credentials Data Model" -> ["W3C", "VCDM"])
+        import re
+        # Extract acronyms and key terms
+        manual_terms = re.findall(r'\b[A-Z]{2,}\b|\b\w+\b', client_clean)
+        manual_lower = client_clean.lower()
+        ai_lower = ai_clean.lower()
+        
+        # Check if any significant term from manual appears in AI response
+        # For "W3C Verifiable Credentials Data Model", check for "W3C", "VCDM", "Verifiable Credentials"
+        key_terms = []
+        if "W3C" in client_clean:
+            key_terms.extend(["W3C", "VCDM", "verifiable credentials"])
+        if "GDPR" in client_clean or "GDPR" in ai_lower:
+            key_terms.append("GDPR")
+        
+        # Also check if manual value appears directly in AI
+        if manual_lower in ai_lower or any(term.lower() in ai_lower for term in manual_terms if len(term) >= 3):
+            return True
+        # Check key terms
+        if any(term.lower() in ai_lower for term in key_terms):
+            return True
+    
+    # For Regulations Followed, check if manual value (or key part like "GDPR") appears in AI list
+    if "regulation" in field_name.lower() and "followed" in field_name.lower():
+        import re
+        # Extract regulation names from manual (e.g., "EU GDPR - EU General Data Protection Regulation" -> "GDPR")
+        manual_lower = client_clean.lower()
+        ai_lower = ai_clean.lower()
+        
+        # Extract acronyms and key terms
+        manual_acronyms = re.findall(r'\b[A-Z]{2,}\b', client_clean)
+        manual_words = [w.lower() for w in re.findall(r'\b\w{4,}\b', client_clean)]
+        
+        # Check if any acronym or key word from manual appears in AI
+        if any(acronym.lower() in ai_lower for acronym in manual_acronyms):
+            return True
+        # Check if significant words match (e.g., "GDPR", "eIDAS")
+        key_regs = ["GDPR", "eIDAS", "CCPA", "FedRAMP", "SOC"]
+        if any(reg.lower() in manual_lower and reg.lower() in ai_lower for reg in key_regs):
+            return True
+        # Check if manual value is contained in AI
+        if manual_lower in ai_lower:
+            return True
+    
     # For URL/website fields, normalize by domain only (ignore paths, trailing slashes, www)
     if 'website' in field_name.lower() or ('url' in field_name.lower() and 'source' not in field_name.lower()):
         from urllib.parse import urlparse

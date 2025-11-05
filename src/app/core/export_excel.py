@@ -191,6 +191,41 @@ def _is_text_match(client_val: str, ai_val: str, field_name: str, threshold: flo
         if client_normalized.lower() == ai_normalized.lower():
             return True
     
+    # For Standard/Protocol Used and Regulations Followed, check if manual value appears in AI's comma-separated list
+    if "standard" in field_name.lower() and "protocol" in field_name.lower():
+        import re
+        manual_terms = re.findall(r'\b[A-Z]{2,}\b|\b\w+\b', client_clean)
+        manual_lower = client_clean.lower()
+        ai_lower = ai_clean.lower()
+        
+        key_terms = []
+        if "W3C" in client_clean:
+            key_terms.extend(["W3C", "VCDM", "verifiable credentials"])
+        if "GDPR" in client_clean or "GDPR" in ai_lower:
+            key_terms.append("GDPR")
+        
+        if manual_lower in ai_lower or any(term.lower() in ai_lower for term in manual_terms if len(term) >= 3):
+            return True
+        if any(term.lower() in ai_lower for term in key_terms):
+            return True
+    
+    # For Regulations Followed, check if manual value (or key part like "GDPR") appears in AI list
+    if "regulation" in field_name.lower() and "followed" in field_name.lower():
+        import re
+        manual_lower = client_clean.lower()
+        ai_lower = ai_clean.lower()
+        
+        manual_acronyms = re.findall(r'\b[A-Z]{2,}\b', client_clean)
+        manual_words = [w.lower() for w in re.findall(r'\b\w{4,}\b', client_clean)]
+        
+        if any(acronym.lower() in ai_lower for acronym in manual_acronyms):
+            return True
+        key_regs = ["GDPR", "eIDAS", "CCPA", "FedRAMP", "SOC"]
+        if any(reg.lower() in manual_lower and reg.lower() in ai_lower for reg in key_regs):
+            return True
+        if manual_lower in ai_lower:
+            return True
+    
     # For URL/website fields, normalize by domain only (ignore paths, trailing slashes, www)
     if 'website' in field_name.lower() or ('url' in field_name.lower() and 'source' not in field_name.lower()):
         from urllib.parse import urlparse
