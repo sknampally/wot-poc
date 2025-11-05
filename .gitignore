@@ -26,6 +26,7 @@ __pycache__/
 # These scripts were removed - functionality consolidated into main.py and utils
 
 # Internal documentation/notes (removed - old files)
+project_documentation.md
 
 # IDE files
 .vscode/

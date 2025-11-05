@@ -32,7 +32,7 @@ def _load_input_df(input_xlsx: Path) -> pd.DataFrame:
 def _build_ai_df(headers: List[str], recs: List[Dict[str, Any]], all_headers: List[str] = None) -> pd.DataFrame:
     """Build DataFrame from AI-extracted records and populate source columns."""
     # Load allowed fields from prompts.json config
-    from app.config.codebook import load_prompts
+    from app.config.config_loader import load_prompts
     prompts_config = load_prompts()
     allowed_failed_to_disclose_fields_list = prompts_config.get("allowed_failed_to_disclose_fields", [])
     if not allowed_failed_to_disclose_fields_list:

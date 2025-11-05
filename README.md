@@ -1,7 +1,7 @@
 # 🧠 Web of Trust POC  
 ### AI-Assisted Data Collection for Digital Identity Projects
 
-This Proof of Concept automatically collects and structures data for **Digital Identity (SSI/DI)** projects using web search (SerpAPI), web scraping, and LLM-based extraction. It reads project names from `input.xlsx`, searches the internet for relevant sources, scrapes content, and uses an LLM to extract structured data into `output.xlsx` with source tracking and comparison against manual data.
+This Proof of Concept automatically collects and structures data for **Digital Identity (SSI/DI)** projects using web search (SerpAPI), web scraping, and LLM-based extraction. It reads project names from `input.xlsx`, uses known websites and blurbs from `manual_seeds.json` to improve search accuracy, searches the internet for relevant sources, scrapes content, and uses an LLM to extract structured data into `output.xlsx` with source tracking and comparison against manual data.
 
 ## 🚀 1  Prerequisites — Install Once
 
@@ -74,7 +74,44 @@ OLLAMA_HOST=http://localhost:11434
 OLLAMA_MODEL=llama3.1
 ```
 
-## 📋  4  Codebook / Data Definitions
+## 📋  4  Manual Seeds Configuration
+
+The system uses `data/manual_seeds.json` to store known websites and blurbs for projects. This improves search accuracy and helps disambiguate similarly named entities.
+
+### Manual Seeds File
+
+Add projects to `data/manual_seeds.json` with their known information:
+
+```json
+{
+  "projects": {
+    "project_name": {
+      "website": "https://example.com",  // Optional: Known official website
+      "blurb": "Project description..."  // Optional: Short description (1-2 sentences)
+    }
+  }
+}
+```
+
+**Benefits**:
+- **Website**: Prioritizes searches within the official domain, generates common pages, ensures official site is scraped
+- **Blurb**: Improves search query accuracy, adds context to avoid wrong entities, used in SerpAPI queries
+
+**Example**:
+```json
+{
+  "projects": {
+    "cheqd": {
+      "website": "https://cheqd.io",
+      "blurb": "Cheqd is a decentralized identity network for self-sovereign identity and verifiable credentials"
+    }
+  }
+}
+```
+
+**Note**: The system automatically loads seeds from this file. Simply add new projects as needed.
+
+## 📋  5  Codebook / Data Definitions
 
 The system uses a **codebook** (field definitions) from `data/wot_data_definations.xlsx` to guide extraction.
 
@@ -93,7 +130,7 @@ This creates `data/codebook.json` which the system automatically uses for better
 
 **Note:** Run this whenever the Excel definitions file is updated. The import is an optional ad-hoc step.
 
-## 🧩  5  Running the POC
+## 🧩  6  Running the POC
 
 ### Step 1  Ensure `.env` has API keys
 Verify your `.env` file contains `SERPAPI_API_KEY` and `OPENAI_API_KEY`.
@@ -127,7 +164,7 @@ python src/main.py --targets all
 - `--project`: Single project name for accuracy/coverage check (used with --check-accuracy or --check-coverage)
 - `--import-codebook`: Import codebook from Excel and exit
 
-### Step 4  Check accuracy (Optional)
+### Step 5  Check accuracy (Optional)
 Accuracy check compares AI-extracted data against manual/client data (if available).
 
 ```bash
@@ -144,7 +181,7 @@ python src/main.py --check-accuracy --project "cheqd"
 # Accuracy check automatically runs after each extraction (backward compatibility)
 ```
 
-### Step 5  Check coverage
+### Step 6  Check coverage
 Coverage shows what percentage of fields are filled with actual data (non-empty values).
 
 ```bash
@@ -169,7 +206,7 @@ Open `data/output.xlsx` to see:
 - **AI sheet**: AI-extracted data with sources
 - **Comparison sheet**: Side-by-side comparison (only Data Columns are matched)
 
-## 📄  6  Outputs
+## 📄  7  Outputs
 
 | File | Description |
 |------|-------------|
@@ -180,13 +217,13 @@ Open `data/output.xlsx` to see:
 | **data/cache/{Product Name}/serpapi_debug.json** | SerpAPI search results (if available) |
 | **logs/wot.log** | Execution logs |
 
-## 🔍  7  How It Works
+## 🔍  8  How It Works
 
 1. **Search Phase** (`searcher.py`):
    - Uses SerpAPI to find relevant URLs via Google search
    - Performs multiple targeted queries (e.g., "project name SSI", "project name about")
    - Filters and prioritizes official sources (homepage, about pages, docs)
-   - Uses known websites from `input.xlsx` to improve targeting
+   - Uses known websites and blurbs from `manual_seeds.json` to improve targeting and search accuracy
 
 2. **Scraping Phase** (`scraper.py`):
    - Fetches HTML from collected URLs
@@ -204,7 +241,7 @@ Open `data/output.xlsx` to see:
    - Creates comparison sheet (only matches Data Columns, excludes source fields)
    - Uses semantic similarity matching for long text fields (60% threshold)
 
-## 🎯  8  Accuracy Metrics
+## 🎯  9  Accuracy Metrics
 
 The system calculates accuracy **only for Data Columns**:
 - ✅ **Included**: All data fields from `wot_data_definations.xlsx` where `extraction_needed=Y`
@@ -213,7 +250,7 @@ The system calculates accuracy **only for Data Columns**:
 
 Text fields use semantic similarity matching (60% threshold) - meaning if two texts convey the same meaning, they're considered a match.
 
-## 📊  9  Coverage Metrics
+## 📊  10  Coverage Metrics
 
 Coverage measures what percentage of fields are filled with actual data (non-empty values).
 
@@ -235,7 +272,7 @@ Coverage measures what percentage of fields are filled with actual data (non-emp
 - ⚠️ 60-79%: Good coverage, some fields need attention
 - ❌ <60%: Low coverage, consider improving extraction strategies
 
-## 🧰  10  Troubleshooting
+## 🧰  11  Troubleshooting
 
 | Issue | Solution |
 |-------|----------|
@@ -243,11 +280,11 @@ Coverage measures what percentage of fields are filled with actual data (non-emp
 | `SERPAPI_KEY not found` | Add `SERPAPI_API_KEY=...` to `.env` file |
 | `OPENAI_API_KEY not found` | Add `OPENAI_API_KEY=...` to `.env` file |
 | Low accuracy | Check SerpAPI key is active, increase `MAX_URLS_PER_PROJECT`, verify codebook imported |
-| Wrong entity extracted | Ensure `Website` column in `input.xlsx` has correct URLs for known projects |
+| Wrong entity extracted | Add project to `data/manual_seeds.json` with `website` and `blurb` fields |
 
-## 💡  11  Tips for Better Results
+## 💡  12  Tips for Better Results
 
-- **Known Websites**: Fill `Website` column in `input.xlsx` - helps target correct entity
+- **Manual Seeds**: Add projects to `data/manual_seeds.json` with `website` and `blurb` - helps target correct entity and improve search accuracy
 - **Codebook**: Keep `data/wot_data_definations.xlsx` updated with field definitions
 - **Prompt Engineering**: Edit `data/prompts.json` to tune LLM extraction instructions without touching code
 - **More URLs**: Increase `MAX_URLS_PER_PROJECT` in `.env` (default: 50)
@@ -272,13 +309,14 @@ This file contains:
 
 **Important**: Changes to `prompts.json` take effect immediately on the next run - no code redeployment needed!
 
-## 🧩  12  Folder Structure
+## 🧩  13  Folder Structure
 
 ```
 wot-poc/
   ├─ data/
-  │   ├─ input.xlsx                  # Input projects
+  │   ├─ input.xlsx                  # Input projects (client data)
   │   ├─ output.xlsx                 # Results
+  │   ├─ manual_seeds.json           # Known websites and blurbs for projects (improves search accuracy)
   │   ├─ wot_data_definations.xlsx   # Field definitions
   │   ├─ codebook.json               # Generated from Excel (auto-created)
   │   ├─ prompts.json                # LLM extraction prompts (editable by prompt engineers)
@@ -308,7 +346,7 @@ wot-poc/
   └─ README.md
 ```
 
-## ✅  13  Summary
+## ✅  14  Summary
 
 This POC automatically:
 1. ✅ Searches the web for project information (SerpAPI)

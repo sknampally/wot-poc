@@ -356,13 +356,13 @@ def _serpapi_search(queries: List[str], num: int, api_key: str) -> Tuple[List[st
 # Public API
 # ---------------------------
 
-def search_urls(project: str, cache_dir: Path | None = None, known_website: str = "") -> List[Dict[str, str]]:
+def search_urls(project: str, cache_dir: Path | None = None, known_website: str = "", blurb: str = "") -> List[Dict[str, str]]:
     """
     Search for relevant URLs for a project using SerpAPI and fallback seeds.
     
     Strategy:
     1. If SerpAPI key available:
-       - Run human-like Google searches (with digital identity context)
+       - Run human-like Google searches (with digital identity context and blurb if provided)
        - Extract URLs from multiple result types
        - Filter irrelevant sources
        - Prioritize known website if provided
@@ -375,6 +375,7 @@ def search_urls(project: str, cache_dir: Path | None = None, known_website: str 
         project: Project name (e.g., "cheqd", "Trusted Biz")
         cache_dir: Optional directory to cache URL list
         known_website: Optional known website URL (helps target correct entity)
+        blurb: Optional blurb/description about the project (improves search accuracy)
     
     Returns:
         List[Dict[str, str]]: List of URL dicts, each with:
@@ -411,10 +412,24 @@ def search_urls(project: str, cache_dir: Path | None = None, known_website: str 
             # Try to infer domain from project name
             domain_guess = _maybe_domain_from_name(project)
         
-        # Human-like Google search queries - prioritize digital identity context
+        # Human-like Google search queries - prioritize digital identity context and blurb
         # OPTIMIZED: Reduced from 12-16 queries to 7-10 queries for faster processing
         # Include industry terms to avoid wrong entities (e.g., "Trusted Biz" vs "Trusted Business Solutions")
         # CRITICAL: When we have a known_website, prioritize it and add domain-specific searches
+        # Use blurb to improve search accuracy and disambiguation
+        
+        # Build base query context - use blurb if available, otherwise use default context
+        if blurb:
+            # Use blurb to create more targeted searches
+            blurb_context = blurb[:100]  # Limit blurb length for search queries
+            base_context = f'{project} {blurb_context}'
+            project_blurb_query = f'"{project}" {blurb_context}'
+            log.info("[search] %s: using blurb for search context: %s", project, blurb_context[:50])
+        else:
+            # Default context: digital identity SSI terms
+            base_context = f'{project} digital identity SSI verifiable credentials'
+            project_blurb_query = f'"{project}" digital identity SSI verifiable credentials'
+        
         if known_website:
             # Extract domain from known website for more specific searches
             parsed = urlparse(known_website if known_website.startswith("http") else f"https://{known_website}")
@@ -425,24 +440,24 @@ def search_urls(project: str, cache_dir: Path | None = None, known_website: str 
                 f'site:{known_domain}',  # Site search for the known website
                 f'site:{known_domain} about mission',  # About/mission pages from known site
                 f'"{project}" site:{known_domain}',  # Project name within known domain
-                # Then broader searches with industry context
-                f'"{project}" digital identity SSI verifiable credentials',  # Combined: very specific + technical terms
-                f'{project} official website about mission',  # Combined: website + about + mission
-                f'{project} founded established launched announcement',  # Combined: dates info
-                f'{project} funding investors partners',  # Combined: funding + partnerships
-                f'{project} wallet ZKP zero-knowledge proofs',  # Combined: technical features
-                f'{project} export credentials key storage',  # Combined: technical features
+                # Then broader searches with blurb context or default context
+                project_blurb_query,  # Use blurb if available, otherwise default
+                f'{base_context} official website about mission',  # Combined: context + website + about + mission
+                f'{base_context} founded established launched announcement',  # Combined: context + dates info
+                f'{base_context} funding investors partners',  # Combined: context + funding + partnerships
+                f'{base_context} wallet ZKP zero-knowledge proofs',  # Combined: context + technical features
+                f'{base_context} export credentials key storage',  # Combined: context + technical features
             ]
         else:
             queries = [
-                # Most specific first - include industry context to avoid wrong entities
-                f'"{project}" digital identity SSI verifiable credentials',  # Combined: very specific + technical terms
-                f'{project} official website about mission',  # Combined: website + about + mission
-                f'{project} founded established launched announcement',  # Combined: dates info
-                f'{project} funding investors partners',  # Combined: funding + partnerships
-                f'{project} github repository open source',  # Combined: code repository
-                f'{project} wallet ZKP zero-knowledge proofs',  # Combined: technical features
-                f'{project} export credentials key storage',  # Combined: technical features
+                # Most specific first - use blurb context or default context
+                project_blurb_query,  # Use blurb if available, otherwise default
+                f'{base_context} official website about mission',  # Combined: context + website + about + mission
+                f'{base_context} founded established launched announcement',  # Combined: context + dates info
+                f'{base_context} funding investors partners',  # Combined: context + funding + partnerships
+                f'{base_context} github repository open source',  # Combined: context + code repository
+                f'{base_context} wallet ZKP zero-knowledge proofs',  # Combined: context + technical features
+                f'{base_context} export credentials key storage',  # Combined: context + technical features
             ]
         
         # Add domain-specific searches if we have a domain (and no known_website already added site: queries)

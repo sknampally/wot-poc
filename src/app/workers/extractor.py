@@ -20,7 +20,7 @@ from app.core.schema import (
     normalize_fd,
     normalize_year,
 )
-from app.config.codebook import load_codebook, Codebook, load_prompts
+from app.config.config_loader import load_codebook, Codebook, load_prompts
 from app.workers.llm_client import chat_json
 
 log = logging.getLogger(__name__)

@@ -1,0 +1,26 @@
+{
+  "version": "1.0",
+  "description": "Manual seeds for projects - contains known websites and blurbs to improve search accuracy. This file is used instead of reading from input.xlsx (which is client data). Add projects here to improve search efficiency.",
+  "projects": {
+    "cheqd": {
+      "website": "https://cheqd.io",
+      "blurb": "Cheqd is a decentralized identity network for self-sovereign identity and verifiable credentials"
+    },
+    "MÁS": {
+      "website": "https://masfan.rfef.es",
+      "blurb": "MÁS is a Spanish digital identity project for football federation"
+    },
+    "esatus": {
+      "website": "https://esatus.com",
+      "blurb": "esatus provides digital identity and SSI solutions"
+    },
+    "Trusted Biz": {
+      "website": "https://trusted.biz",
+      "blurb": "Trusted Biz is a digital identity platform"
+    }
+  },
+  "usage": {
+    "website": "Optional - Known official website URL for the project. Helps prioritize and disambiguate searches.",
+    "blurb": "Optional - Short description about the project. Used to improve search query accuracy and context. Should be 1-2 sentences describing what the project does."
+  }
+}

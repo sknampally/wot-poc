@@ -157,7 +157,7 @@ def main():
     output_xlsx = DATA_DIR / "output.xlsx"  # Results with AI extraction and comparison
     print(f"input={input_xlsx} output={output_xlsx}")
 
-    from app.config.codebook import load_codebook, load_prompts
+    from app.config.config_loader import load_codebook, load_prompts
     codebook = load_codebook()
     prompts_config = load_prompts()
     
@@ -190,51 +190,27 @@ def main():
     if not targets:
         raise SystemExit("No targets parsed from --targets")
 
-    import pandas as pd
-    df_input = pd.read_excel(input_xlsx, sheet_name=0, dtype=str).fillna("")
-    name_col = None
-    website_col = None
-    github_col = None
-    for col in df_input.columns:
-        if col.lower() in ["product name", "project name", "name"]:
-            name_col = col
-        if col.lower() == "website":
-            website_col = col
-        if "code repository" in col.lower() and "public" in col.lower():
-            github_col = col
-    
-    project_websites = {}
-    project_github = {}
-    if name_col:
-        for _, row in df_input.iterrows():
-            proj_name = str(row.get(name_col, "")).strip()
-            if not proj_name:
-                continue
-                
-            # Extract website if available
-            if website_col:
-                website = str(row.get(website_col, "")).strip()
-                if website and website.lower() not in ("nan", "none", ""):
-                    project_websites[proj_name] = website
-            
-            # Extract GitHub repository if available
-            if github_col:
-                github = str(row.get(github_col, "")).strip()
-                if github and github.lower() not in ("nan", "none", "") and "github.com" in github.lower():
-                    project_github[proj_name] = github
+    # Load manual seeds (known websites and blurbs) from manual_seeds.json
+    from app.config.config_loader import get_project_seed
     
     # Process each project through the pipeline
     all_rows = []
     for project in targets:
         print(f"Processing {project}")
         
-        known_website = project_websites.get(project, "")
-        known_github = project_github.get(project, "")
+        # Get seed data from manual_seeds.json (website and blurb)
+        known_website, blurb = get_project_seed(project, seeds_file=DATA_DIR / "manual_seeds.json")
+        
+        if known_website:
+            log.info("[main] %s: using known website from manual_seeds.json: %s", project, known_website)
+        if blurb:
+            log.info("[main] %s: using blurb from manual_seeds.json: %s", project, blurb[:50])
         
         url_items = search_urls(
             project, 
             cache_dir=CACHE_DIR / project, 
-            known_website=known_website
+            known_website=known_website,
+            blurb=blurb
         )
         
         pages = scrape_urls(
