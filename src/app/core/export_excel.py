@@ -183,6 +183,14 @@ def _is_text_match(client_val: str, ai_val: str, field_name: str, threshold: flo
     if client_clean.lower() == ai_clean.lower():
         return True
     
+    # For Managing Entity, normalize parenthetical names (e.g., "Name (Short)" vs "Name")
+    if "managing entity" in field_name.lower():
+        import re
+        client_normalized = re.sub(r'\s*\([^)]+\)\s*', '', client_clean).strip()
+        ai_normalized = re.sub(r'\s*\([^)]+\)\s*', '', ai_clean).strip()
+        if client_normalized.lower() == ai_normalized.lower():
+            return True
+    
     # For URL/website fields, normalize by domain only (ignore paths, trailing slashes, www)
     if 'website' in field_name.lower() or ('url' in field_name.lower() and 'source' not in field_name.lower()):
         from urllib.parse import urlparse
