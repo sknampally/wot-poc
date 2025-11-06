@@ -1,8 +1,8 @@
 # Web of Trust Data Collection System
 ## Client Documentation
 
-**Version:** 2.0  
-**Last Updated:** 2024  
+**Version:** 1.0  
+**Last Updated:** 2025  
 **Document Type:** Technical Documentation
 
 ---
