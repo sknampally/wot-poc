@@ -15,13 +15,10 @@
 4. [Architecture & Data Flow](#architecture--data-flow)
 5. [Data Schema](#data-schema)
 6. [Quality Metrics](#quality-metrics)
-7. [Usage Guide](#usage-guide)
-8. [Configuration](#configuration)
-9. [Output Format](#output-format)
-10. [Technical Requirements](#technical-requirements)
-11. [API Integrations](#api-integrations)
-12. [Best Practices](#best-practices)
-13. [Support & Troubleshooting](#support--troubleshooting)
+7. [Configuration](#configuration)
+8. [Output Format](#output-format)
+9. [API Integrations](#api-integrations)
+10. [Appendices](#appendices)
 
 ---
 
@@ -48,15 +45,6 @@ The system automates the complete data collection workflow:
 ✅ **Flexible**: Configurable extraction rules  
 ✅ **Transparent**: Complete audit trail
 
-### Current Performance
-
-| Metric | Value |
-|--------|-------|
-| **Average Accuracy** | 52.4% (compared to manual data) |
-| **Average Coverage** | 45-65% (varies by project) |
-| **Processing Time** | 2-5 minutes per project |
-| **Cost per Project** | $0.10-$0.30 |
-
 ---
 
 ## System Overview
@@ -73,7 +61,7 @@ The system is designed to populate a comprehensive database of Digital Identity 
 
 ### Core Components
 
-1. **Search Engine**: Uses SerpAPI to find relevant URLs via Google Search
+1. **Search Engine**: Uses external API to find relevant URLs via Google Search
 2. **Web Scraper**: Extracts clean text content from HTML pages
 3. **LLM Extractor**: Uses OpenAI GPT-4 or local Ollama models to extract structured data
 4. **Perplexity Fallback**: Uses Perplexity AI for web-grounded extraction when primary extraction fails
@@ -155,7 +143,7 @@ Output (Structured Data + Quality Metrics)
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    Main Application (main.py)                │
+│                    Main Application (main.py)               │
 └─────────────────────────────────────────────────────────────┘
                             │
         ┌───────────────────┼───────────────────┐
@@ -168,10 +156,10 @@ Output (Structured Data + Quality Metrics)
 └──────────────┘   └──────────────┘   └──────────────┘
                             │                   │
                             │                   ▼
-                            │           ┌──────────────┐
-                            │           │  Perplexity  │
-                            │           │   Fallback   │
-                            │           └──────────────┘
+                            │          ┌──────────────┐
+                            │          │  Perplexity  │
+                            │          │   Fallback   │
+                            │          └──────────────┘
                             │                   │
                             ▼                   ▼
                     ┌──────────────┐   ┌──────────────┐
@@ -386,174 +374,11 @@ The system generates detailed quality reports showing:
 
 ---
 
-## Usage Guide
-
-### Prerequisites
-
-1. **Python 3.12+** installed
-2. **API Keys**:
-   - SerpAPI key (for web search)
-   - OpenAI API key (for LLM extraction)
-   - Perplexity API key (for fallback extraction)
-
-### Quick Start
-
-#### 1. Setup Environment
-
-```bash
-# Clone repository
-git clone <repository-url>
-cd wot-poc
-
-# Create virtual environment
-python3 -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
-
-# Install dependencies
-pip install -r requirements.txt
-```
-
-#### 2. Configure API Keys
-
-Create `.env` file in project root:
-
-```env
-SERPAPI_API_KEY=your_serpapi_key_here
-OPENAI_API_KEY=your_openai_key_here
-PERPLEXITY_API_KEY=your_perplexity_key_here
-LLM_PROVIDER=openai
-LLM_MODEL=gpt-4o-mini
-```
-
-#### 3. Prepare Input Data
-
-**Input File** (`data/input.xlsx`):
-- **Product Name**: Project names to process
-- **Other fields** (optional): Manual data for comparison
-
-**Manual Seeds** (`data/manual_seeds.json`):
-- Add projects with known `website` and `blurb` to improve search accuracy
-- Example:
-```json
-{
-  "projects": {
-    "cheqd": {
-      "website": "https://cheqd.io",
-      "blurb": "Cheqd is a decentralized identity network..."
-    }
-  }
-}
-```
-
-#### 4. Run Extraction
-
-```bash
-# Single project
-python src/main.py --targets "cheqd"
-
-# Multiple projects
-python src/main.py --targets "cheqd,esatus,MÁS"
-
-# All projects
-python src/main.py --targets all
-
-# With accuracy check
-python src/main.py --targets "cheqd" --with-accuracy-check
-```
-
-#### 5. Check Results
-
-Results are saved to `data/output.xlsx` with three sheets:
-- **Input**: Original manual data
-- **AI**: AI-extracted data with sources
-- **Comparison**: Side-by-side comparison
-
-### Command-Line Options
-
-| Option | Description | Example |
-|--------|-------------|---------|
-| `--targets` | Comma-separated project names or "all" | `--targets "cheqd,esatus"` |
-| `--provider` | LLM provider (openai, ollama) | `--provider openai` |
-| `--model` | Model name | `--model gpt-4o-mini` |
-| `--with-accuracy-check` | Run accuracy check after extraction | `--with-accuracy-check` |
-| `--check-accuracy` | Run accuracy check only | `--check-accuracy` |
-| `--check-coverage` | Run coverage check only | `--check-coverage` |
-| `--project` | Single project for accuracy/coverage | `--project "cheqd"` |
-
-### Running Quality Checks
-
-#### Accuracy Check
-
-```bash
-# All projects
-python src/main.py --check-accuracy
-
-# Single project
-python src/main.py --check-accuracy --project "cheqd"
-```
-
-#### Coverage Check
-
-```bash
-# All projects
-python src/main.py --check-coverage
-
-# Single project
-python src/main.py --check-coverage --project "cheqd"
-```
-
----
+> **Note**: For setup instructions, usage guide, and command-line options, please refer to [README.md](README.md).
 
 ## Configuration
 
-### Manual Seeds Configuration
-
-The system uses `data/manual_seeds.json` to store known websites and blurbs for projects. This improves search accuracy and helps disambiguate similarly named entities.
-
-**Location**: `data/manual_seeds.json`
-
-**Structure**:
-```json
-{
-  "version": "1.0",
-  "description": "Manual seeds for projects",
-  "projects": {
-    "project_name": {
-      "website": "https://example.com",  // Optional: Known official website
-      "blurb": "Project description..."  // Optional: Short description (1-2 sentences)
-    }
-  }
-}
-```
-
-**Fields**:
-- **website** (Optional): Known official website URL. Prioritizes searches within the official domain, generates common pages, ensures official site is scraped.
-- **blurb** (Optional): Short description about the project (1-2 sentences). Improves search query accuracy, adds context to avoid wrong entities, used in SerpAPI queries.
-
-**Example**:
-```json
-{
-  "projects": {
-    "cheqd": {
-      "website": "https://cheqd.io",
-      "blurb": "Cheqd is a decentralized identity network for self-sovereign identity and verifiable credentials"
-    },
-    "MÁS": {
-      "website": "https://masfan.rfef.es",
-      "blurb": "MÁS is a Spanish digital identity project for football federation"
-    }
-  }
-}
-```
-
-**Benefits**:
-- **Standard Implementation**: No longer dependent on client input file structure
-- **Extensible**: Easy to add new projects with known information
-- **Better Search**: Blurb context improves search accuracy
-- **Disambiguation**: Website + blurb together help avoid wrong entities
-- **Maintainable**: Single JSON file to manage all project seeds
-
-**Note**: The system automatically loads seeds from this file. Simply add new projects as needed.
+> **Note**: For manual seeds configuration, please refer to [README.md](README.md) Section 4.
 
 ### Codebook Configuration
 
@@ -586,31 +411,7 @@ All LLM extraction prompts are stored in `data/prompts.json` for easy editing wi
 
 **Changes take effect immediately** on next run - no code redeployment needed.
 
-### Environment Configuration
-
-**`.env` File Options**:
-
-```env
-# API Keys (Required)
-SERPAPI_API_KEY=your_key
-OPENAI_API_KEY=your_key
-PERPLEXITY_API_KEY=your_key
-
-# LLM Configuration
-LLM_PROVIDER=openai              # openai | ollama
-LLM_MODEL=gpt-4o-mini            # Model name
-LLM_MAX_TOKENS=4000              # Max output tokens
-
-# Search Configuration
-MAX_URLS_PER_PROJECT=50          # Max URLs to collect
-
-# Optional: Auto-Accuracy Check
-AUTO_CHECK_ACCURACY=false        # Auto-run accuracy check after extraction
-
-# Ollama Configuration (if using local LLM)
-OLLAMA_HOST=http://localhost:11434
-OLLAMA_MODEL=llama3.1
-```
+> **Note**: For environment configuration (.env file), please refer to [README.md](README.md) Section 3.
 
 ---
 
@@ -641,25 +442,7 @@ OLLAMA_MODEL=llama3.1
 
 ### Cache Files
 
-All intermediate data is cached for debugging:
-
-```
-data/
-├── input.xlsx                  # Input projects (client data)
-├── output.xlsx                 # Results
-├── manual_seeds.json           # Known websites and blurbs for projects
-├── wot_data_definations.xlsx   # Field definitions
-├── codebook.json               # Generated from Excel (auto-created)
-├── prompts.json                # LLM extraction prompts
-└── cache/{Project Name}/      # Cache per project
-    ├── urls.json              # URLs found during search
-    ├── serpapi_debug.json     # SerpAPI search results
-    ├── llm_raw.json          # Raw LLM extraction response
-    └── texts/                # Scraped text content
-        ├── 01.txt           # Text from URL 1
-        ├── 02.txt           # Text from URL 2
-        └── ...
-```
+All intermediate data is cached for debugging. See [README.md](README.md) Section 7 for details on cache file structure.
 
 ### Log Files
 
@@ -669,71 +452,6 @@ data/
 - **INFO**: General execution flow
 - **DEBUG**: Detailed extraction steps
 - **ERROR**: Errors and exceptions
-
----
-
-## Technical Requirements
-
-### Software Requirements
-
-- **Python**: 3.12 or newer
-- **Operating System**: macOS, Windows, Linux
-- **Package Manager**: pip
-
-### Python Dependencies
-
-| Package | Version | Purpose |
-|---------|---------|---------|
-| openai | 1.51.2 | OpenAI API client |
-| pandas | 2.2.2 | Data manipulation |
-| openpyxl | 3.1.5 | Excel file handling |
-| requests | 2.32.3 | HTTP requests |
-| beautifulsoup4 | 4.12.3 | HTML parsing |
-| tenacity | 8.5.0 | Retry logic |
-| python-dotenv | 1.0.1 | Environment variables |
-
-### API Requirements
-
-#### SerpAPI
-- **Purpose**: Google Search results
-- **Free Tier**: 100 searches/month
-- **Pricing**: $50/month for 5,000 searches
-- **Signup**: [serpapi.com](https://serpapi.com)
-
-#### OpenAI
-- **Purpose**: Primary LLM extraction
-- **Model**: gpt-4o-mini (recommended)
-- **Pricing**: ~$0.15 per 1M input tokens, ~$0.60 per 1M output tokens
-- **Signup**: [platform.openai.com](https://platform.openai.com)
-
-#### Perplexity AI
-- **Purpose**: Fallback extraction with web search
-- **Model**: sonar (recommended)
-- **Pricing**: ~$0.0005 per query
-- **Signup**: [perplexity.ai](https://perplexity.ai)
-
-### Hardware Requirements
-
-- **RAM**: 4GB minimum, 8GB recommended
-- **Storage**: 1GB for project files, additional for cache
-- **Network**: Stable internet connection for API calls
-
-### Processing Time
-
-- **Per Project**: 2-5 minutes
-- **Factors**:
-  - Number of URLs found (max 50)
-  - LLM response time
-  - Perplexity fallback queries (if needed)
-
-### Cost Estimates
-
-**Per Project**: $0.10-$0.30
-- SerpAPI: ~$0.01 (1 search)
-- OpenAI: ~$0.05-0.20 (depending on context size)
-- Perplexity: ~$0.01-0.05 (5-10 fallback queries)
-
-**Per 100 Projects**: ~$10-30
 
 ---
 
@@ -756,11 +474,6 @@ data/
 
 **Purpose**: Primary LLM for structured data extraction
 
-**Models Supported**:
-- `gpt-4o-mini` (recommended, cost-effective)
-- `gpt-4o` (higher quality, more expensive)
-- `gpt-4-turbo` (balanced)
-
 **Configuration**:
 - API key in `.env`: `OPENAI_API_KEY`
 - Provider: `LLM_PROVIDER=openai`
@@ -770,11 +483,6 @@ data/
 ### Perplexity AI Integration
 
 **Purpose**: Fallback extraction with real-time web search
-
-**Models Supported**:
-- `sonar` (recommended, fast)
-- `sonar-pro` (higher quality)
-- `sonar-reasoning` (most accurate)
 
 **Usage**:
 - Automatically triggered for empty or "Failed to disclose" fields
@@ -808,151 +516,7 @@ ollama serve
 
 **Note**: Local models may have lower extraction quality compared to OpenAI.
 
----
-
-## Best Practices
-
-### 1. Input Data Preparation
-
-✅ **Do**:
-- Add projects to `data/manual_seeds.json` with `website` and `blurb` for better search accuracy
-- Include manual data in `input.xlsx` for projects you want to validate
-- Use consistent project names
-- Provide descriptive blurbs (1-2 sentences) to help disambiguate entities
-
-❌ **Don't**:
-- Use ambiguous project names without context
-- Skip adding known projects to `manual_seeds.json`
-
-### 2. Extraction Strategy
-
-✅ **Do**:
-- Run extraction for all projects first
-- Review output.xlsx for obvious errors
-- Run accuracy check for projects with manual data
-- Use Perplexity fallback for missing fields
-
-❌ **Don't**:
-- Skip the Perplexity fallback (it significantly improves coverage)
-- Ignore low-coverage projects (investigate why)
-
-### 3. Quality Assurance
-
-✅ **Do**:
-- Review accuracy reports for patterns
-- Check source URLs for extracted values
-- Validate high-confidence extractions
-- Investigate mismatches
-
-❌ **Don't**:
-- Accept low accuracy without investigation
-- Ignore source attribution
-- Skip validation for critical fields
-
-### 4. Configuration Management
-
-✅ **Do**:
-- Update codebook when field definitions change
-- Tune prompts in `prompts.json` based on results
-- Adjust similarity thresholds for matching
-- Document custom configurations
-
-❌ **Don't**:
-- Modify code for prompt changes (use prompts.json)
-- Hard-code field definitions (use codebook)
-- Ignore normalization rules
-
-### 5. Cost Optimization
-
-✅ **Do**:
-- Use `gpt-4o-mini` for cost-effective extraction
-- Limit `MAX_URLS_PER_PROJECT` if needed
-- Cache results to avoid re-extraction
-- Monitor API usage
-
-❌ **Don't**:
-- Use expensive models unnecessarily
-- Process the same project multiple times
-- Skip caching for debugging
-
----
-
-## Support & Troubleshooting
-
-### Common Issues
-
-#### Issue: Low Accuracy
-
-**Symptoms**: Accuracy below 50% for projects with manual data
-
-**Solutions**:
-1. Check if manual data is correct (verify source)
-2. Review mismatches in comparison sheet
-3. Adjust similarity thresholds in `accuracy.py`
-4. Improve prompts in `prompts.json`
-5. Increase `MAX_URLS_PER_PROJECT` for more context
-
-#### Issue: Low Coverage
-
-**Symptoms**: Coverage below 60% for projects
-
-**Solutions**:
-1. Verify Perplexity API key is set
-2. Check Perplexity query templates in `prompts.json`
-3. Review excluded domains (may be filtering relevant sources)
-4. Add projects to `data/manual_seeds.json` with `website` and `blurb`
-5. Increase `MAX_URLS_PER_PROJECT`
-
-#### Issue: Wrong Entity Extracted
-
-**Symptoms**: Extracted data for wrong project/entity
-
-**Solutions**:
-1. Add project to `data/manual_seeds.json` with `website` and `blurb` fields
-2. Check if project name is ambiguous
-3. Review SerpAPI search results in `cache/{project}/serpapi_debug.json`
-4. Improve disambiguation by adding a more descriptive blurb
-
-#### Issue: API Errors
-
-**Symptoms**: `SERPAPI_KEY not found` or `OPENAI_API_KEY not found`
-
-**Solutions**:
-1. Verify `.env` file exists in project root
-2. Check API keys are set correctly
-3. Verify API keys are valid (not expired)
-4. Check API quota/limits
-
-#### Issue: Module Not Found
-
-**Symptoms**: `ModuleNotFoundError: No module named 'app'`
-
-**Solutions**:
-1. Activate virtual environment: `source .venv/bin/activate`
-2. Install dependencies: `pip install -r requirements.txt`
-3. Verify Python version: `python3 --version` (should be 3.12+)
-
-### Getting Help
-
-1. **Check Logs**: Review `logs/wot.log` for detailed error messages
-2. **Review Cache**: Check `data/cache/{project}/` for intermediate results
-3. **Validate Input**: Ensure `input.xlsx` is formatted correctly
-4. **Test Configuration**: Run with `--targets "single_project"` first
-
-### Debug Mode
-
-Enable detailed logging by setting log level to DEBUG in `src/app/utils/logger.py`:
-
-```python
-logging.basicConfig(level=logging.DEBUG)
-```
-
-### Performance Optimization
-
-- **Parallel Processing**: Currently sequential (can be parallelized)
-- **Caching**: Results are cached, avoid re-processing same projects
-- **Batch Processing**: Process multiple projects in one run
-- **API Optimization**: Use cost-effective models (gpt-4o-mini)
+> **Note**: For best practices, troubleshooting, and getting help, please refer to [README.md](README.md) Sections 11 and 12.
 
 ---
 
@@ -980,19 +544,10 @@ See `src/app/utils/accuracy.py` for matching logic implementation.
 
 | Version | Date | Changes |
 |---------|------|---------|
-| 2.0 | 2024 | Initial client documentation |
+| 1.0 | 2025 | Initial client documentation |
 | | | Added Perplexity fallback documentation |
 | | | Added accuracy and coverage metrics |
 | | | Added configuration guide |
-
----
-
-## Next Steps
-
-1. Review current accuracy and coverage metrics
-2. Identify projects with low quality scores
-3. Tune extraction prompts for better results
-4. Expand to additional projects as needed
 
 ---
 

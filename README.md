@@ -330,7 +330,7 @@ wot-poc/
   │   ├─ main.py                     # Entry point
   │   └─ app/
   │       ├─ config/
-  │       │   └─ codebook.py         # Codebook loader
+  │       │   └─ config_loader.py    # Unified configuration loader (codebook, prompts, manual_seeds)
   │       ├─ core/
   │       │   ├─ schema.py           # Schema utilities
   │       │   └─ export_excel.py     # Excel export & comparison
