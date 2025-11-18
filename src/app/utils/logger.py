@@ -69,6 +69,13 @@ def setup_logging():
     ch.setFormatter(ch_formatter)
     logger.addHandler(ch)
 
+    # Silence overly verbose third-party library loggers to prevent reentrant logging issues
+    # These libraries log at DEBUG level for every HTTP request, which can cause logging conflicts
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
+    logging.getLogger("openai").setLevel(logging.WARNING)
+    logging.getLogger("openai._base_client").setLevel(logging.WARNING)
+
     logger.info(f"Logging initialized at {LOGFILE}")
     logger.info(f"Console log level: {logging.getLevelName(console_level)}")
     return logger
